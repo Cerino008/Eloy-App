@@ -1,6 +1,7 @@
 export { Avatar } from './Avatar';
 export { Boton } from './Boton';
 export { BotonIcono } from './BotonIcono';
+export { BotonVolver } from './BotonVolver';
 export { Chip } from './Chip';
 export { Dato } from './Dato';
 export { Pantalla } from './Pantalla';

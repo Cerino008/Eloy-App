@@ -7,7 +7,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, type Theme } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -16,6 +16,20 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colores } from '@/tema';
 
 SplashScreen.preventAutoHideAsync();
+
+// La app es siempre clara, aunque el teléfono esté en modo oscuro.
+const temaNavegacion: Theme = {
+  ...DefaultTheme,
+  dark: false,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colores.accion,
+    background: colores.fondo,
+    card: colores.superficie,
+    text: colores.texto,
+    border: colores.separador,
+  },
+};
 
 export default function RootLayout() {
   const [fuentesCargadas, errorFuentes] = useFonts({
@@ -39,8 +53,15 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colores.fondo } }} />
+        <ThemeProvider value={temaNavegacion}>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colores.fondo } }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="alerta/[id]" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
+            <Stack.Screen name="vincular" />
+            <Stack.Screen name="nuevo-recordatorio" options={{ presentation: 'modal' }} />
+          </Stack>
+        </ThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );
