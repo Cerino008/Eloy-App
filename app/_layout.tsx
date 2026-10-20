@@ -39,7 +39,8 @@ export default function RootLayout() {
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
   });
-  const [queryClient] = useState(() => new QueryClient());
+  // Un solo reintento: con los 3 de fábrica el error tarda varios segundos en aparecer.
+  const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1 } } }));
 
   // Si la fuente falla seguimos con la del sistema antes que dejar la app trabada.
   const listo = fuentesCargadas || errorFuentes !== null;

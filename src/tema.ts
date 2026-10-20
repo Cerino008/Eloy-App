@@ -12,6 +12,8 @@ export const colores = {
 
   // Un solo botón naranja por pantalla, con texto en azul petróleo.
   accion: '#F28C28',
+  // Para íconos naranjas sobre blanco: el de acción no llega a 3:1.
+  accionOscuro: '#D9760F',
 
   teal: '#3E9A8A',
   tealSuave: '#E3F1EE',

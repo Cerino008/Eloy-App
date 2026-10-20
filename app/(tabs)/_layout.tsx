@@ -10,7 +10,7 @@ const ALTO_BARRA = 64;
 // La pestaña activa: ícono naranja y texto en negrita.
 function icono(Icono: LucideIcon) {
   return ({ focused }: { focused: boolean }) => (
-    <Icono size={26} strokeWidth={2} color={focused ? colores.accion : colores.textoSecundario} />
+    <Icono size={26} strokeWidth={2} color={focused ? colores.accionOscuro : colores.textoSecundario} />
   );
 }
 
