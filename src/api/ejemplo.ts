@@ -1,5 +1,5 @@
 // Datos de ejemplo mientras no hay backend. Solo los lee cliente.ts, nunca las pantallas.
-import type { EstadoPersona, Familiar, Hoy } from './tipos';
+import type { EstadoPersona, Familiar, Hoy, Mensaje } from './tipos';
 
 // Para probar otros casos en el teléfono: cambiá estos valores y guardá.
 export const escenario = {
@@ -8,9 +8,10 @@ export const escenario = {
   fallar: false, // las llamadas a la API fallan, para ver el estado de error
 };
 
-// Hoy a esa hora del teléfono, en UTC como lo manda la API.
-function hoyALas(horas: number, minutos: number): string {
+// Hace tantos días, a esa hora del teléfono, en UTC como lo manda la API.
+function haceDias(dias: number, horas: number, minutos: number): string {
   const fecha = new Date();
+  fecha.setDate(fecha.getDate() - dias);
   fecha.setHours(horas, minutos, 0, 0);
   return fecha.toISOString();
 }
@@ -24,10 +25,13 @@ export const yo: Familiar = {
   tieneCuenta: true,
 };
 
+const VERO_ID = 2;
+const JUAN_ID = 3;
+
 export const hoy: Hoy = {
   persona: { id: 1, nombre: 'Marta', telefono: '+5491100000000' },
   estado: escenario.estado,
-  ultimaCharla: hoyALas(10, 42),
+  ultimaCharla: haceDias(0, 10, 42),
   resumen:
     'Charló un rato a la mañana y contó que está tejiendo una bufanda para su nieta. ' +
     'Tomó la pastilla de las 9 cuando Eloy se la recordó.',
@@ -37,3 +41,86 @@ export const hoy: Hoy = {
   proximo: { hora: '18:00', titulo: 'Pastilla de la presión' },
   alertaAbiertaId: escenario.alertaAbierta ? 1 : null,
 };
+
+// Ordenados del más viejo al más nuevo.
+export const mensajes: Mensaje[] = [
+  {
+    id: 1,
+    direccion: 'de_familia',
+    de: 'Juan',
+    deFamiliarId: JUAN_ID,
+    para: null,
+    texto: 'Abuela, el sábado paso a verte con Sofi.',
+    audioUrl: null,
+    audioDuracionSeg: null,
+    estado: 'leido',
+    leidoEn: haceDias(5, 18, 40),
+    creadoEn: haceDias(5, 18, 32),
+  },
+  {
+    id: 2,
+    direccion: 'a_familia',
+    de: 'Marta',
+    deFamiliarId: null,
+    para: null,
+    texto: 'Hoy fui a la plaza con Rosa y tomamos un café.',
+    audioUrl: null,
+    audioDuracionSeg: null,
+    estado: 'entregado',
+    leidoEn: null,
+    creadoEn: haceDias(1, 17, 15),
+  },
+  {
+    id: 3,
+    direccion: 'de_familia',
+    de: 'Vero',
+    deFamiliarId: VERO_ID,
+    para: null,
+    texto: '¡Qué lindo, ma! Mandale saludos a Rosa.',
+    audioUrl: null,
+    audioDuracionSeg: null,
+    estado: 'leido',
+    leidoEn: haceDias(1, 17, 52),
+    creadoEn: haceDias(1, 17, 30),
+  },
+  {
+    id: 4,
+    direccion: 'a_familia',
+    de: 'Marta',
+    deFamiliarId: null,
+    para: null,
+    texto: 'Decile a Vero que el domingo la espero a comer',
+    // Todavía no hay audios reales: la burbuja se muestra pero no reproduce.
+    audioUrl: 'ejemplo://audio/4',
+    audioDuracionSeg: 4,
+    estado: 'entregado',
+    leidoEn: null,
+    creadoEn: haceDias(0, 10, 45),
+  },
+  {
+    id: 5,
+    direccion: 'de_familia',
+    de: 'Bautista',
+    deFamiliarId: yo.id,
+    para: null,
+    texto: '¡Dale, mamá! Le aviso. Yo llevo las empanadas.',
+    audioUrl: null,
+    audioDuracionSeg: null,
+    estado: 'leido',
+    leidoEn: haceDias(0, 11, 20),
+    creadoEn: haceDias(0, 11, 5),
+  },
+  {
+    id: 6,
+    direccion: 'de_familia',
+    de: 'Bautista',
+    deFamiliarId: yo.id,
+    para: null,
+    texto: '¿Te acordaste de la pastilla del mediodía?',
+    audioUrl: null,
+    audioDuracionSeg: null,
+    estado: 'pendiente',
+    leidoEn: null,
+    creadoEn: haceDias(0, 12, 10),
+  },
+];

@@ -10,19 +10,28 @@ type Props = {
   fondo?: Color;
   // Con pestañas abajo, la barra ya respeta el borde inferior.
   bordes?: Edge[];
+  // false para pantallas que van de borde a borde, como el chat.
+  relleno?: boolean;
 };
 
-export function Pantalla({ children, scroll = true, fondo = 'fondo', bordes = ['top', 'left', 'right'] }: Props) {
+export function Pantalla({
+  children,
+  scroll = true,
+  fondo = 'fondo',
+  bordes = ['top', 'left', 'right'],
+  relleno = true,
+}: Props) {
   const colorFondo = { backgroundColor: colores[fondo] };
+  const contenido = relleno && estilos.contenido;
 
   return (
     <SafeAreaView style={[estilos.base, colorFondo]} edges={bordes}>
       {scroll ? (
-        <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={contenido || undefined} keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
       ) : (
-        <View style={[estilos.base, estilos.contenido]}>{children}</View>
+        <View style={[estilos.base, contenido]}>{children}</View>
       )}
     </SafeAreaView>
   );

@@ -89,6 +89,7 @@ export type Mensaje = {
   id: number;
   direccion: 'de_familia' | 'a_familia';
   de: string;
+  deFamiliarId: number | null;  // null = lo mandó la persona. PEDIRLE A HÉCTOR: la app lo usa para saber cuáles son míos
   para: string | null;          // null = toda la familia
   texto: string | null;
   audioUrl: string | null;

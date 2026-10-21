@@ -19,6 +19,7 @@ export type Mensaje = {
   id: number;
   direccion: 'de_familia' | 'a_familia';
   de: string;
+  deFamiliarId: number | null; // null = lo mandó la persona (Marta). Pendiente de pedírselo a Héctor.
   para: string | null; // null = toda la familia
   texto: string | null;
   audioUrl: string | null;
