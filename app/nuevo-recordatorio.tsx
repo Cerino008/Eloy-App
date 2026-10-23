@@ -32,6 +32,19 @@ function inicioDeHoy(): Date {
   return hoy;
 }
 
+function inicioDeManana(): Date {
+  const manana = inicioDeHoy();
+  manana.setDate(manana.getDate() + 1);
+  return manana;
+}
+
+// Para "Una sola vez": si es hoy y esa hora ya pasó, pasa a mañana.
+function fechaPosible(hora: Date, fecha: Date): Date {
+  const ahora = new Date();
+  const yaPaso = aFechaTexto(fecha) === aFechaTexto(ahora) && aHoraTexto(hora) <= aHoraTexto(ahora);
+  return yaPaso ? inicioDeManana() : fecha;
+}
+
 function nueveDeLaManana(): Date {
   const hora = new Date();
   hora.setHours(9, 0, 0, 0);
@@ -54,6 +67,16 @@ export default function NuevoRecordatorio() {
   const yaPaso =
     repeticion === 'una_vez' && aFechaTexto(fecha) === aFechaTexto(ahora) && aHoraTexto(hora) <= aHoraTexto(ahora);
   const completo = titulo.trim().length > 0 && !faltanDias && !yaPaso;
+
+  const cambiarHora = (nueva: Date) => {
+    setHora(nueva);
+    if (repeticion === 'una_vez') setFecha((actual) => fechaPosible(nueva, actual));
+  };
+
+  const cambiarRepeticion = (nueva: Repeticion) => {
+    setRepeticion(nueva);
+    if (nueva === 'una_vez') setFecha((actual) => fechaPosible(hora, actual));
+  };
 
   // Con los 7 días marcados se guarda como diario: así un mismo recordatorio no queda guardado de dos formas.
   const armarDatos = (): RecordatorioNuevo => {
@@ -106,12 +129,12 @@ export default function NuevoRecordatorio() {
         />
 
         <Tarjeta style={estilos.tarjetaFila}>
-          <SelectorFechaHora etiqueta="Hora" modo="time" valor={hora} onCambiar={setHora} />
+          <SelectorFechaHora etiqueta="Hora" modo="time" valor={hora} onCambiar={cambiarHora} />
         </Tarjeta>
 
         <View style={estilos.seccion}>
           <Texto variante="cuerpoFuerte">Cuándo</Texto>
-          <OpcionUnica etiqueta="Cuándo" opciones={OPCIONES} valor={repeticion} onCambiar={setRepeticion} />
+          <OpcionUnica etiqueta="Cuándo" opciones={OPCIONES} valor={repeticion} onCambiar={cambiarRepeticion} />
         </View>
 
         {repeticion === 'semanal' && (
@@ -126,7 +149,8 @@ export default function NuevoRecordatorio() {
             <Tarjeta style={estilos.tarjetaFila}>
               <SelectorFechaHora etiqueta="Fecha" modo="date" valor={fecha} onCambiar={setFecha} minimo={inicioDeHoy()} />
             </Tarjeta>
-            {yaPaso && <Texto color="textoSecundario">Esa hora ya pasó. Elegí otra hora u otro día.</Texto>}
+            {/* Solo si eligió hoy a mano con una hora que ya pasó: si no, la fecha pasa sola a mañana. */}
+            {yaPaso && <Texto color="textoSecundario">Elegí una hora más tarde o otro día.</Texto>}
           </View>
         )}
 
