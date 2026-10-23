@@ -139,6 +139,16 @@ export type Alerta = {
 };
 ```
 
+### Pendiente con Héctor
+
+La app ya lo usa con datos de ejemplo (`src/api/cliente.ts`); falta acordarlo en la API:
+
+- `deFamiliarId` en `Mensaje`: para saber cuáles mandé yo.
+- `api.yo()`: quién usa la app (un `Familiar`), o que lo devuelva el login.
+- Invitaciones con código: `api.invitarFamiliar()` devuelve `{ codigo }` de 6 caracteres.
+- Cambiar volumen: `api.cambiarVolumen(n)`, de 0 a 100; devuelve el `Dispositivo`.
+- Restaurar de fábrica: `api.restaurarFabrica()`; qué borra exactamente (charlas, recordatorios, familia).
+
 ## Cómo trabajar
 
 - Una tarea por vez; mostrar el plan antes de crear muchos archivos.

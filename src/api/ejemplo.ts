@@ -1,13 +1,14 @@
 // Datos de ejemplo mientras no hay backend. Solo los lee cliente.ts, nunca las pantallas.
 import { aFechaTexto } from '@/fechas';
 
-import type { EstadoPersona, Familiar, Hoy, Mensaje, Recordatorio } from './tipos';
+import type { Dispositivo, EstadoPersona, Familiar, Hoy, Mensaje, Recordatorio } from './tipos';
 
 // Para probar otros casos en el teléfono: cambiá estos valores y guardá.
 export const escenario = {
   estado: 'bien' as EstadoPersona,
   alertaAbierta: false,
   fallar: false, // las llamadas a la API fallan, para ver el estado de error
+  sinDispositivo: false, // todavía no hay un Eloy vinculado
 };
 
 // Hace tantos días, a esa hora del teléfono, en UTC como lo manda la API.
@@ -29,6 +30,34 @@ export const yo: Familiar = {
 
 const VERO_ID = 2;
 const JUAN_ID = 3;
+
+export const familiares: Familiar[] = [
+  yo,
+  {
+    id: VERO_ID,
+    nombre: 'Vero',
+    parentesco: 'Hija',
+    rol: 'familiar',
+    prioridadAlerta: 1,
+    tieneCuenta: true,
+  },
+  {
+    id: JUAN_ID,
+    nombre: 'Juan',
+    parentesco: 'Nieto',
+    rol: 'familiar',
+    prioridadAlerta: 3,
+    tieneCuenta: true,
+  },
+];
+
+export const dispositivo: Dispositivo = {
+  conectado: true,
+  ultimaConexion: new Date(Date.now() - 60 * 1000).toISOString(),
+  wifiSsid: 'Casa de Marta',
+  volumen: 70,
+  versionSoftware: '1.2.0',
+};
 
 // Los recordatorios de hoy y el próximo los calcula cliente.ts a partir de la lista de recordatorios.
 export const hoy: Omit<Hoy, 'recordatorios' | 'proximo'> = {

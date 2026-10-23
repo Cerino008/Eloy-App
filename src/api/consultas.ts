@@ -8,4 +8,6 @@ export const consultas = {
   hoy: queryOptions({ queryKey: ['hoy'], queryFn: api.hoy }),
   mensajes: queryOptions({ queryKey: ['mensajes'], queryFn: api.mensajes }),
   recordatorios: queryOptions({ queryKey: ['recordatorios'], queryFn: api.recordatorios }),
+  familiares: queryOptions({ queryKey: ['familiares'], queryFn: api.familiares }),
+  dispositivo: queryOptions({ queryKey: ['dispositivo'], queryFn: api.dispositivo }),
 };

@@ -61,6 +61,11 @@ export type Familiar = {
   tieneCuenta: boolean;
 };
 
+// Código para que un familiar nuevo entre a la app. Pendiente con Héctor.
+export type Invitacion = {
+  codigo: string;
+};
+
 export type Dispositivo = {
   conectado: boolean;
   ultimaConexion: string | null;
