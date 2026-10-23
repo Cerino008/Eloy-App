@@ -49,6 +49,9 @@ export type Recordatorio = {
   estadoHoy?: 'sono' | 'pendiente';
 };
 
+// Lo que manda la app para crear uno: el servidor pone el id y calcula estadoHoy.
+export type RecordatorioNuevo = Omit<Recordatorio, 'id' | 'estadoHoy'>;
+
 export type Familiar = {
   id: number;
   nombre: string;

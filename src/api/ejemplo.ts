@@ -1,5 +1,7 @@
 // Datos de ejemplo mientras no hay backend. Solo los lee cliente.ts, nunca las pantallas.
-import type { EstadoPersona, Familiar, Hoy, Mensaje } from './tipos';
+import { aFechaTexto } from '@/fechas';
+
+import type { EstadoPersona, Familiar, Hoy, Mensaje, Recordatorio } from './tipos';
 
 // Para probar otros casos en el teléfono: cambiá estos valores y guardá.
 export const escenario = {
@@ -28,7 +30,8 @@ export const yo: Familiar = {
 const VERO_ID = 2;
 const JUAN_ID = 3;
 
-export const hoy: Hoy = {
+// Los recordatorios de hoy y el próximo los calcula cliente.ts a partir de la lista de recordatorios.
+export const hoy: Omit<Hoy, 'recordatorios' | 'proximo'> = {
   persona: { id: 1, nombre: 'Marta', telefono: '+5491100000000' },
   estado: escenario.estado,
   ultimaCharla: haceDias(0, 10, 42),
@@ -37,10 +40,63 @@ export const hoy: Hoy = {
     'Tomó la pastilla de las 9 cuando Eloy se la recordó.',
   charlas: 3,
   minutos: 18,
-  recordatorios: { cumplidos: 2, total: 3 },
-  proximo: { hora: '18:00', titulo: 'Pastilla de la presión' },
   alertaAbiertaId: escenario.alertaAbierta ? 1 : null,
 };
+
+function diaSiguiente(): string {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + 1);
+  return aFechaTexto(fecha);
+}
+
+// Sin estadoHoy: lo calcula el servidor (acá, cliente.ts) según el día y la hora.
+export const recordatorios: Recordatorio[] = [
+  {
+    id: 1,
+    titulo: 'Pastilla de la presión',
+    descripcion: 'la blanca, con agua',
+    hora: '09:00',
+    repeticion: 'diaria',
+    diasSemana: null,
+    fechaUnica: null,
+  },
+  {
+    id: 2,
+    titulo: 'Almorzar',
+    descripcion: null,
+    hora: '13:00',
+    repeticion: 'diaria',
+    diasSemana: null,
+    fechaUnica: null,
+  },
+  {
+    id: 3,
+    titulo: 'Pastilla de la tarde',
+    descripcion: null,
+    hora: '18:00',
+    repeticion: 'diaria',
+    diasSemana: null,
+    fechaUnica: null,
+  },
+  {
+    id: 4,
+    titulo: 'Turno con la doctora',
+    descripcion: null,
+    hora: '10:00',
+    repeticion: 'una_vez',
+    diasSemana: null,
+    fechaUnica: diaSiguiente(),
+  },
+  {
+    id: 5,
+    titulo: 'Gimnasia',
+    descripcion: null,
+    hora: '17:00',
+    repeticion: 'semanal',
+    diasSemana: ['lunes', 'jueves'],
+    fechaUnica: null,
+  },
+];
 
 // Ordenados del más viejo al más nuevo.
 export const mensajes: Mensaje[] = [

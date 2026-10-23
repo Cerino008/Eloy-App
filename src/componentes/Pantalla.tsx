@@ -27,7 +27,12 @@ export function Pantalla({
   return (
     <SafeAreaView style={[estilos.base, colorFondo]} edges={bordes}>
       {scroll ? (
-        <ScrollView contentContainerStyle={contenido || undefined} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={contenido || undefined}
+          keyboardShouldPersistTaps="handled"
+          // iOS: deja lugar para el teclado así no tapa los campos de abajo.
+          automaticallyAdjustKeyboardInsets
+        >
           {children}
         </ScrollView>
       ) : (

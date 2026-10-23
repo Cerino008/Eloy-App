@@ -17,6 +17,9 @@ import { colores } from '@/tema';
 
 SplashScreen.preventAutoHideAsync();
 
+// Si se entra directo a un modal o a una alerta (por ejemplo, desde una notificación), las pestañas quedan debajo.
+export const unstable_settings = { anchor: '(tabs)' };
+
 // La app es siempre clara, aunque el teléfono esté en modo oscuro.
 const temaNavegacion: Theme = {
   ...DefaultTheme,

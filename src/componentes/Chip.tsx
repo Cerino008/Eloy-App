@@ -29,10 +29,10 @@ export function Chip({ texto, variante = 'neutro' }: Props) {
 }
 
 const estilos = StyleSheet.create({
+  // Sin alignSelf: lo ubica el contenedor (centrado en una fila, a la derecha, etc.).
   base: {
-    alignSelf: 'flex-start',
     borderRadius: radio.pill,
-    paddingHorizontal: espacio[4],
+    paddingHorizontal: espacio[3],
     paddingVertical: espacio[1] + 2,
   },
   texto: { fontFamily: fuentes.semi },
