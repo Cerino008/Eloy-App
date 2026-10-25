@@ -1,0 +1,40 @@
+# Entorno de desarrollo: base MariaDB + la API, con un solo comando:  docker compose up --build
+# (la API queda en http://localhost:8000/docs). NO sirve para producción: usa claves de juguete.
+#
+# La base se crea sola la primera vez con sql/eloy_servidor.sql. Si cambiás el esquema y querés
+# empezar de cero:  docker compose down -v
+services:
+  db:
+    image: mariadb:10.11
+    command: ["--default-time-zone=+00:00", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    environment:
+      MARIADB_ROOT_PASSWORD: clave
+      MARIADB_DATABASE: eloy
+    ports: ["3306:3306"]
+    volumes:
+      - datos_db:/var/lib/mysql
+      - ./sql/eloy_servidor.sql:/docker-entrypoint-initdb.d/01_eloy_servidor.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8000:8000"]
+    environment:
+      ENTORNO: desarrollo
+      DATABASE_URL: mysql+pymysql://root:clave@db:3306/eloy?charset=utf8mb4
+      JWT_SECRET: solo-para-desarrollo-no-usar-en-produccion-0123456789
+      PROVISIONING_KEY: otra-clave-solo-para-desarrollo-9876543210-abcdef
+      URL_PUBLICA: http://localhost:8000
+    volumes:
+      - audios:/app/media
+
+volumes:
+  datos_db:
+  audios:

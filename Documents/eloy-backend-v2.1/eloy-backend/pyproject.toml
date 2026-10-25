@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W: estilo, F: errores reales (imports sin usar, variables no definidas), B: bugs típicos.
+select = ["E", "F", "W", "B"]
+# B008: en FastAPI `Depends(...)` como valor por defecto es el patrón normal, no un bug.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Los tests importan la app DESPUÉS de fijar las variables de entorno (por eso E402).
+"tests/*" = ["E402"]
