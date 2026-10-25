@@ -101,8 +101,8 @@ export default function NuevoRecordatorio() {
   };
 
   return (
-    // Con el borde de arriba: en la hoja del modal vale 0, pero si se abre como pantalla completa no queda bajo el reloj.
-    <Pantalla bordes={['top', 'bottom', 'left', 'right']}>
+    // Sin 'top': es una hoja, ya arranca debajo del reloj (con anchor en _layout siempre se abre así).
+    <Pantalla bordes={['bottom', 'left', 'right']}>
       <View style={estilos.columna}>
         <View style={estilos.encabezado}>
           <Texto variante="titulo" accessibilityRole="header" style={estilos.flex}>

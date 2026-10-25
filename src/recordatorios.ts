@@ -1,6 +1,7 @@
 // Cuándo suena cada recordatorio, en palabras y en fechas.
 import type { DiaSemana, Recordatorio } from '@/api/tipos';
 import { aFechaTexto, fechaLocal, nombreDeFecha } from '@/fechas';
+import { capitalizar, enumerar } from '@/textos';
 
 // La semana empieza el lunes.
 export const DIAS_SEMANA: DiaSemana[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
@@ -20,16 +21,6 @@ const POR_GET_DAY: DiaSemana[] = ['domingo', 'lunes', 'martes', 'miercoles', 'ju
 
 export function diaSemanaDe(fecha: Date): DiaSemana {
   return POR_GET_DAY[fecha.getDay()];
-}
-
-function capitalizar(texto: string): string {
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
-}
-
-// "lunes", "lunes y jueves", "lunes, miércoles y viernes".
-function enumerar(partes: string[]): string {
-  if (partes.length <= 1) return partes.join('');
-  return `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}`;
 }
 
 // "Todos los días", "Lunes y jueves", "De lunes a viernes", "Viernes 23 · una sola vez".

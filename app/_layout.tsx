@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ErrorApi } from '@/api/errores';
 import { colores } from '@/tema';
 
 SplashScreen.preventAutoHideAsync();
@@ -43,7 +44,17 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
   // Un solo reintento: con los 3 de fábrica el error tarda varios segundos en aparecer.
-  const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1 } } }));
+  // Las respuestas 4xx (404, 409...) no se reintentan: la respuesta no va a cambiar.
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: (fallas, error) => !(error instanceof ErrorApi && error.estado < 500) && fallas < 1,
+          },
+        },
+      }),
+  );
 
   // Si la fuente falla seguimos con la del sistema antes que dejar la app trabada.
   const listo = fuentesCargadas || errorFuentes !== null;

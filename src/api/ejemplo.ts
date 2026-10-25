@@ -1,7 +1,7 @@
 // Datos de ejemplo mientras no hay backend. Solo los lee cliente.ts, nunca las pantallas.
 import { aFechaTexto } from '@/fechas';
 
-import type { Dispositivo, EstadoPersona, Familiar, Hoy, Mensaje, Recordatorio } from './tipos';
+import type { Alerta, Dispositivo, EstadoPersona, Familiar, Hoy, Mensaje, Recordatorio } from './tipos';
 
 // Para probar otros casos en el teléfono: cambiá estos valores y guardá.
 export const escenario = {
@@ -9,6 +9,7 @@ export const escenario = {
   alertaAbierta: false,
   fallar: false, // las llamadas a la API fallan, para ver el estado de error
   sinDispositivo: false, // todavía no hay un Eloy vinculado
+  atendidaPorOtro: false, // "Ya me ocupo yo" falla como el 409 del backend: Vero ya la tomó
 };
 
 // Hace tantos días, a esa hora del teléfono, en UTC como lo manda la API.
@@ -59,8 +60,8 @@ export const dispositivo: Dispositivo = {
   versionSoftware: '1.2.0',
 };
 
-// Los recordatorios de hoy y el próximo los calcula cliente.ts a partir de la lista de recordatorios.
-export const hoy: Omit<Hoy, 'recordatorios' | 'proximo'> = {
+// Los recordatorios de hoy, el próximo y la alerta abierta los calcula cliente.ts.
+export const hoy: Omit<Hoy, 'recordatorios' | 'proximo' | 'alertaAbiertaId'> = {
   persona: { id: 1, nombre: 'Marta', telefono: '+5491100000000' },
   estado: escenario.estado,
   ultimaCharla: haceDias(0, 10, 42),
@@ -69,7 +70,30 @@ export const hoy: Omit<Hoy, 'recordatorios' | 'proximo'> = {
     'Tomó la pastilla de las 9 cuando Eloy se la recordó.',
   charlas: 3,
   minutos: 18,
-  alertaAbiertaId: escenario.alertaAbierta ? 1 : null,
+};
+
+// La de escenario.alertaAbierta: Marta pidió ayuda hace 5 minutos.
+export const alerta: Alerta = {
+  id: 1,
+  idPersona: 1,
+  persona: 'Marta',
+  telefonoPersona: '+5491100000000',
+  estado: 'abierta',
+  origen: 'voz',
+  motivo: 'Me caí en la cocina y no me puedo levantar',
+  // Todavía no hay audios reales: el reproductor se muestra pero no suena.
+  audioUrl: 'ejemplo://audio/alerta-1',
+  audioDuracionSeg: 5,
+  ocurridaEn: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+  atendidaPor: null,
+  atendidaPorMi: false,
+  atendidaEn: null,
+  cerradaEn: null,
+  notaCierre: null,
+  tambienAvisamosA: [
+    { nombre: 'Vero', parentesco: 'hija' },
+    { nombre: 'Juan', parentesco: 'nieto' },
+  ],
 };
 
 function diaSiguiente(): string {

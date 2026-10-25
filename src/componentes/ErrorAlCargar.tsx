@@ -9,17 +9,29 @@ type Props = {
   onReintentar: () => void;
   reintentando?: boolean;
   titulo?: string;
+  // Sobre el fondo rojo de Alerta el botón va blanco, no naranja.
+  sobreAlerta?: boolean;
 };
 
 // Usa el botón naranja: va en lugar del contenido, así que es el único de la pantalla.
-export function ErrorAlCargar({ onReintentar, reintentando, titulo = 'No pudimos traer las novedades' }: Props) {
+export function ErrorAlCargar({
+  onReintentar,
+  reintentando,
+  titulo = 'No pudimos traer las novedades',
+  sobreAlerta,
+}: Props) {
   return (
     <View style={estilos.base}>
       <Tarjeta style={estilos.tarjeta}>
         <Texto variante="cuerpoFuerte">{titulo}</Texto>
         <Texto variante="secundario">Revisá que el teléfono tenga internet y probá de nuevo.</Texto>
       </Tarjeta>
-      <Boton titulo="Reintentar" onPress={onReintentar} cargando={reintentando} />
+      <Boton
+        titulo="Reintentar"
+        variante={sobreAlerta ? 'alertaClaro' : 'principal'}
+        onPress={onReintentar}
+        cargando={reintentando}
+      />
     </View>
   );
 }

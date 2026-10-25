@@ -42,6 +42,15 @@ export function hora(iso: string): string {
   return horaDe(new Date(iso));
 }
 
+// "hace un momento", "hace 1 minuto", "hace 25 minutos"; null pasada la hora (ahí alcanza con la hora).
+export function haceCuanto(iso: string, ahora: Date = new Date()): string | null {
+  const minutos = Math.floor((ahora.getTime() - Date.parse(iso)) / 60000);
+  if (minutos < 1) return 'hace un momento';
+  if (minutos === 1) return 'hace 1 minuto';
+  if (minutos < 60) return `hace ${minutos} minutos`;
+  return null;
+}
+
 // Duración de un audio: 4 → "0:04", 75 → "1:15".
 export function duracion(segundos: number): string {
   const total = Math.max(0, Math.round(segundos));

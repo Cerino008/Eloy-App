@@ -10,4 +10,5 @@ export const consultas = {
   recordatorios: queryOptions({ queryKey: ['recordatorios'], queryFn: api.recordatorios }),
   familiares: queryOptions({ queryKey: ['familiares'], queryFn: api.familiares }),
   dispositivo: queryOptions({ queryKey: ['dispositivo'], queryFn: api.dispositivo }),
+  alerta: (id: number) => queryOptions({ queryKey: ['alerta', id], queryFn: () => api.alerta(id) }),
 };

@@ -132,15 +132,24 @@ export type Dispositivo = {
   versionSoftware: string | null;
 };
 
+// Ya alineado con AlertaOut de schemas.py (camelCase).
 export type Alerta = {
   id: number;
+  idPersona: number;
+  persona: string;
+  telefonoPersona: string | null;
+  estado: 'abierta' | 'atendida' | 'cerrada';
+  origen: 'voz' | 'pulsera' | 'pantalla';
   motivo: string | null;
   audioUrl: string | null;
   audioDuracionSeg: number | null;
   ocurridaEn: string;
-  estado: 'abierta' | 'atendida' | 'cerrada';
   atendidaPor: string | null;
-  tambienAvisados: Array<{ nombre: string; parentesco: string | null }>;
+  atendidaPorMi: boolean;
+  atendidaEn: string | null;
+  cerradaEn: string | null;
+  notaCierre: string | null;
+  tambienAvisamosA: Array<{ nombre: string; parentesco: string | null }>;
 };
 ```
 

@@ -5,13 +5,17 @@ import { Texto } from './Texto';
 
 type Props = {
   texto?: string;
+  // En blanco, para que se lea sobre el fondo rojo de Alerta.
+  sobreAlerta?: boolean;
 };
 
-export function Cargando({ texto = 'Un momento…' }: Props) {
+export function Cargando({ texto = 'Un momento…', sobreAlerta }: Props) {
   return (
     <View style={estilos.base} accessible accessibilityLabel={texto} accessibilityState={{ busy: true }}>
-      <ActivityIndicator size="large" color={colores.texto} />
-      <Texto variante="secundario">{texto}</Texto>
+      <ActivityIndicator size="large" color={sobreAlerta ? colores.textoSobreOscuro : colores.texto} />
+      <Texto variante="secundario" color={sobreAlerta ? 'textoSobreOscuro' : 'textoSecundario'}>
+        {texto}
+      </Texto>
     </View>
   );
 }

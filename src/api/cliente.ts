@@ -3,8 +3,10 @@
 import { aHoraTexto } from '@/fechas';
 import { suenaElDia } from '@/recordatorios';
 
+import { ErrorApi } from './errores';
 import * as ejemplo from './ejemplo';
 import type {
+  Alerta,
   Dispositivo,
   Familiar,
   Hoy,
@@ -37,6 +39,12 @@ const mensajes: Mensaje[] = [...ejemplo.mensajes];
 const recordatorios: Recordatorio[] = [...ejemplo.recordatorios];
 const familiares: Familiar[] = [...ejemplo.familiares];
 let dispositivo: Dispositivo | null = ejemplo.escenario.sinDispositivo ? null : { ...ejemplo.dispositivo };
+let alerta: Alerta | null = ejemplo.escenario.alertaAbierta ? { ...ejemplo.alerta } : null;
+
+function buscarAlerta(id: number): Alerta {
+  if (!alerta || alerta.id !== id) throw new ErrorApi(404, 'Alerta no encontrada');
+  return alerta;
+}
 
 // Lo que va a calcular el servidor: si suena hoy y, en ese caso, si ya sonó.
 function conEstadoDeHoy(recordatorio: Recordatorio, ahora: Date): Recordatorio {
@@ -59,15 +67,20 @@ function codigoNuevo(): string {
 }
 
 export const api = {
-  // Quién usa la app. No está en el contrato todavía: acordarlo con Héctor.
+  // Quién usa la app. En el backend: GET /auth/yo, y el rol sale de GET /personas/{id}/familia.
   yo: (): Promise<Familiar> => simularServidor(() => ejemplo.yo),
 
   hoy: (): Promise<Hoy> =>
     simularServidor(() => {
       const deHoy = recordatoriosDeHoy(new Date());
       const siguiente = deHoy.find((recordatorio) => recordatorio.estadoHoy === 'pendiente');
+      // Como el backend: el estado es "alerta" mientras haya una alerta abierta, y solo entonces.
+      const abierta = alerta?.estado === 'abierta' ? alerta : null;
+      const estado = abierta ? 'alerta' : ejemplo.hoy.estado === 'alerta' ? 'bien' : ejemplo.hoy.estado;
       return {
         ...ejemplo.hoy,
+        estado,
+        alertaAbiertaId: abierta?.id ?? null,
         recordatorios: {
           cumplidos: deHoy.filter((recordatorio) => recordatorio.estadoHoy === 'sono').length,
           total: deHoy.length,
@@ -120,7 +133,7 @@ export const api = {
   // null: todavía no hay un Eloy vinculado.
   dispositivo: (): Promise<Dispositivo | null> => simularServidor(() => dispositivo),
 
-  // Pendiente con Héctor.
+  // En el backend: PATCH /dispositivos/{id}, responde 202 y Eloy lo aplica en la próxima sincronización.
   cambiarVolumen: (volumen: number): Promise<Dispositivo> =>
     simularServidor(() => {
       if (!dispositivo) throw new Error('No hay un Eloy vinculado');
@@ -128,10 +141,34 @@ export const api = {
       return dispositivo;
     }),
 
-  // Pendiente con Héctor.
+  // En el backend: POST /personas/{id}/invitaciones devuelve { link, codigo, expira_en }.
   invitarFamiliar: (): Promise<Invitacion> => simularServidor(() => ({ codigo: codigoNuevo() })),
 
-  // Pendiente con Héctor. Simula el borrado: sin Eloy, sin charlas, sin recordatorios y la familia solo con quien lo pidió.
+  alerta: (id: number): Promise<Alerta> => simularServidor(() => buscarAlerta(id)),
+
+  // Como POST /alertas/{id}/atender: si otro ya la tomó, 409 con quién se ocupa.
+  atenderAlerta: (id: number): Promise<Alerta> =>
+    simularServidor(() => {
+      let actual = buscarAlerta(id);
+      if (actual.estado === 'abierta' && ejemplo.escenario.atendidaPorOtro) {
+        // Vero tocó "Ya me ocupo yo" un instante antes.
+        actual = { ...actual, estado: 'atendida', atendidaPor: 'Vero', atendidaPorMi: false, atendidaEn: new Date().toISOString() };
+        alerta = actual;
+      }
+      if (actual.estado !== 'abierta') {
+        throw new ErrorApi(409, actual.atendidaPor ? `${actual.atendidaPor} ya se está ocupando` : 'La alerta ya no está abierta');
+      }
+      alerta = {
+        ...actual,
+        estado: 'atendida',
+        atendidaPor: ejemplo.yo.nombre,
+        atendidaPorMi: true,
+        atendidaEn: new Date().toISOString(),
+      };
+      return alerta;
+    }),
+
+  // Simula el borrado: sin Eloy, sin charlas, sin recordatorios y la familia solo con quien lo pidió.
   restaurarFabrica: (): Promise<void> =>
     simularServidor(() => {
       dispositivo = null;
