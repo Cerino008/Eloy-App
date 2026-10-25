@@ -2,7 +2,7 @@
 
 App móvil (iOS y Android) para los familiares de una persona mayor que usa **Eloy**, un robot compañero con IA que vive en su casa (Raspberry Pi). La familia ve cómo está la persona, le manda mensajes que Eloy lee en voz alta, carga recordatorios y recibe alertas si pide ayuda.
 
-- La app la desarrolla Bautista. El backend (API + base MySQL/MariaDB) lo hace Héctor, en otro repo.
+- La app la desarrolla Bautista. El backend (API + base MySQL/MariaDB) lo hace Héctor y está en `backend/` de este repo. **Es de Héctor: no tocar nada en `backend/`**; solo leerlo como referencia.
 - La app **nunca** habla con la Raspberry: todo pasa por la API del backend.
 - Texto de la app en **español rioplatense** (voseo: "Escribile", "Agregá"). Tono cercano, nada técnico.
 
@@ -35,6 +35,7 @@ src/
   api/tipos.ts             contrato con el backend
   api/ejemplo.ts           datos de ejemplo (Marta, Vero, Juan)
   api/cliente.ts           funciones api.xxx(); hoy devuelven ejemplos, después llaman a la API
+backend/                   API de Héctor (no tocar). Contrato: app/schemas.py y README.md
 ```
 
 Regla: las pantallas **no** leen `ejemplo.ts` directo, siempre usan `cliente.ts`. Cuando el backend esté listo solo cambia `cliente.ts`.
@@ -66,9 +67,13 @@ Accesibilidad: `accessibilityLabel` en botones que son solo ícono; contraste su
 5. **Vincular a Eloy**: escanear el QR de la pantalla de Eloy o escribir el código.
 6. **Familia**: familiares con rol y prioridad, "Invitar a un familiar", tarjeta de Eloy (conectado, WiFi, volumen, versión), "Restaurar de fábrica" con doble confirmación.
 
-## Contrato con el backend (borrador; ajustar con Héctor)
+## Contrato con el backend
 
-Base de datos documentada en `docs/Eloy_Diagnostico_y_Base_de_Datos_v2.pdf` (tablas, consultas por pantalla). Fechas de la API siempre en **UTC ISO 8601**; la app las muestra en hora local.
+El contrato real es el del backend: **`backend/app/schemas.py`** (qué entra y sale de cada endpoint) y **`backend/README.md`** (rutas, códigos de respuesta y notas para la app). Base de datos documentada en `docs/Eloy_Diagnostico_y_Base_de_Datos_v2.pdf`. Fechas de la API siempre en **UTC ISO 8601**; la app las muestra en hora local.
+
+**Pantallas nuevas:** los tipos de `src/api/tipos.ts` siguen los nombres de `schemas.py` pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`, `atendida_por_mi` → `atendidaPorMi`).
+
+Tipos que la app usa hoy (borrador anterior al backend; se alinean con `schemas.py` al conectar cada pantalla):
 
 ```ts
 export type EstadoPersona = 'bien' | 'atencion' | 'sin_conexion' | 'alerta';
@@ -89,7 +94,7 @@ export type Mensaje = {
   id: number;
   direccion: 'de_familia' | 'a_familia';
   de: string;
-  deFamiliarId: number | null;  // null = lo mandó la persona. PEDIRLE A HÉCTOR: la app lo usa para saber cuáles son míos
+  deFamiliarId: number | null;  // null = lo mandó la persona. El backend manda es_mio: pasar a esMio al conectar
   para: string | null;          // null = toda la familia
   texto: string | null;
   audioUrl: string | null;
@@ -139,15 +144,20 @@ export type Alerta = {
 };
 ```
 
+### Ya resuelto en el backend
+
+Lo que la app simula en `src/api/cliente.ts` y el backend ya tiene; al conectar, seguir lo del backend:
+
+- **Mensajes:** `es_mio: bool` en `MensajeOut`, en vez de `deFamiliarId`.
+- **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas/{id}/familia` (`mi_rol`, `soy_yo`).
+- **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expira_en }`. El código es largo y viaja dentro del link: se comparte el link (hoy la app simula un código de 6).
+- **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización. Solo administradores.
+- **Restaurar de fábrica:** `POST /dispositivos/{id}/restaurar` con `{"confirmacion": "RESTAURAR"}` (la app lo manda tras el segundo aviso); responde 202 y 409 si ya hay una en curso. `restaurando` en el dispositivo indica que está pendiente.
+- **Atender una alerta:** `POST /alertas/{id}/atender` responde **409** si otro familiar ya la tomó; el `detail` dice quién ("Vero ya se está ocupando").
+
 ### Pendiente con Héctor
 
-La app ya lo usa con datos de ejemplo (`src/api/cliente.ts`); falta acordarlo en la API:
-
-- `deFamiliarId` en `Mensaje`: para saber cuáles mandé yo.
-- `api.yo()`: quién usa la app (un `Familiar`), o que lo devuelva el login.
-- Invitaciones con código: `api.invitarFamiliar()` devuelve `{ codigo }` de 6 caracteres.
-- Cambiar volumen: `api.cambiarVolumen(n)`, de 0 a 100; devuelve el `Dispositivo`.
-- Restaurar de fábrica: `api.restaurarFabrica()`; qué borra exactamente (charlas, recordatorios, familia).
+- Que las respuestas salgan en **camelCase** (hoy salen en snake_case, como en `schemas.py`).
 
 ## Cómo trabajar
 
@@ -155,3 +165,4 @@ La app ya lo usa con datos de ejemplo (`src/api/cliente.ts`); falta acordarlo en
 - Componentes chicos y reutilizables; estilos siempre desde `tema.ts`.
 - Después de cada cambio: `npx tsc --noEmit` sin errores.
 - Commits chicos con mensaje en español que diga qué cambió.
+- Después de cada commit, `git push`.
