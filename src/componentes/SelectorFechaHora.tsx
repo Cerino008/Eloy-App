@@ -34,7 +34,7 @@ export function SelectorFechaHora({ etiqueta, modo, valor, onCambiar, minimo }: 
           accentColor={colores.texto}
           minimumDate={minimo}
           accessibilityLabel={etiqueta}
-          onChange={(_evento, fecha) => fecha && onCambiar(fecha)}
+          onValueChange={(_evento, fecha) => onCambiar(fecha)}
         />
       ) : (
         <Pressable
@@ -47,9 +47,8 @@ export function SelectorFechaHora({ etiqueta, modo, valor, onCambiar, minimo }: 
               mode: modo,
               is24Hour: true,
               minimumDate: minimo,
-              onChange: (evento, fecha) => {
-                if (evento.type === 'set' && fecha) onCambiar(fecha);
-              },
+              // Solo cuando eligen una fecha; si cierran el diálogo no cambia nada.
+              onValueChange: (_evento, fecha) => onCambiar(fecha),
             })
           }
         >

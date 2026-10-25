@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  View,
+  type FlatListInstance,
+} from 'react-native';
 
 import { consultas } from '@/api/consultas';
 import type { Mensaje } from '@/api/tipos';
@@ -67,7 +75,8 @@ export default function Mensajes() {
   const nombre = hoy.data?.persona.nombre;
 
   const [texto, setTexto] = useState('');
-  const lista = useRef<FlatList<Fila>>(null);
+  // Tipo de instancia, como pide la API estricta de React Native 0.88; solo se usa para scrollToOffset.
+  const lista = useRef<FlatListInstance>(null);
 
   const enviar = useEnviarMensaje((textoNoEnviado) => {
     // Si ya empezó a escribir otra cosa, no se la pisamos.

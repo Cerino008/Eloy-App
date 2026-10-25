@@ -8,7 +8,7 @@ App móvil (iOS y Android) para los familiares de una persona mayor que usa **El
 
 ## Stack
 
-- Expo + React Native + **TypeScript** (modo estricto)
+- Expo **SDK 58** (React Native 0.88, React 19.3) + **TypeScript** (modo estricto). Con la API estricta de tipos de React Native, las refs usan tipos de instancia (`FlatListInstance`, `ViewInstance`…)
 - **Expo Router** para la navegación (carpeta `app/`)
 - TanStack Query para pedir datos a la API
 - expo-secure-store (sesión), expo-camera (QR), expo-notifications (push, etapa 3), expo-audio (audios)
