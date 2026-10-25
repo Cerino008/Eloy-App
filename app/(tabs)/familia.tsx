@@ -77,6 +77,7 @@ function Contenido({
   const miId = yo.persona.idMiFamiliar;
   const esAdministrador = yo.persona.miRol === 'administrador';
   const administrador = familiares.find((familiar) => familiar.rol === 'administrador');
+  const nombreAdministrador = administrador?.nombre ?? 'quien administra la familia';
 
   const invitar = useMutation({
     mutationFn: api.invitarFamiliar,
@@ -105,12 +106,17 @@ function Contenido({
           <Boton titulo="Invitar a un familiar" onPress={() => invitar.mutate()} cargando={invitar.isPending} />
         ) : (
           <Texto color="textoSecundario" centrado>
-            Pedile a {administrador?.nombre ?? 'quien administra la familia'} que invite a alguien.
+            Pedile a {nombreAdministrador} que invite a alguien.
           </Texto>
         )}
       </View>
 
-      <SeccionEloy nombre={nombre} dispositivo={dispositivo} esAdministrador={esAdministrador} />
+      <SeccionEloy
+        nombre={nombre}
+        dispositivo={dispositivo}
+        esAdministrador={esAdministrador}
+        nombreAdministrador={nombreAdministrador}
+      />
     </>
   );
 }
@@ -119,10 +125,12 @@ function SeccionEloy({
   nombre,
   dispositivo,
   esAdministrador,
+  nombreAdministrador,
 }: {
   nombre: string | undefined;
   dispositivo: Dispositivo | null;
   esAdministrador: boolean;
+  nombreAdministrador: string;
 }) {
   const router = useRouter();
   const cambiarVolumen = useCambiarVolumen(() =>
@@ -189,9 +197,16 @@ function SeccionEloy({
       ) : (
         <>
           <Tarjeta>
-            <Texto>Todavía no vinculaste a Eloy. Se hace escaneando el código que aparece en su pantalla.</Texto>
+            <Texto>Eloy todavía no está vinculado. Se hace escaneando el código que aparece en su pantalla.</Texto>
           </Tarjeta>
-          <Boton titulo="Vincular a Eloy" variante="contorno" onPress={() => router.push('/vincular')} />
+          {/* Para la persona actual: el backend solo se lo permite a un administrador. */}
+          {esAdministrador ? (
+            <Boton titulo="Vincular a Eloy" variante="contorno" onPress={() => router.push('/vincular')} />
+          ) : (
+            <Texto color="textoSecundario" centrado>
+              Pedile a {nombreAdministrador} que vincule a Eloy.
+            </Texto>
+          )}
         </>
       )}
     </View>

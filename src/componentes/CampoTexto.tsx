@@ -9,11 +9,13 @@ type Props = Omit<TextInputProps, 'style'> & {
   etiqueta: string;
   // Lo que está mal en este campo: aparece debajo, en rojo, y el borde se pone rojo.
   error?: string | null;
+  // Para códigos cortos (ej. el de Eloy): letras grandes, centradas y separadas.
+  codigo?: boolean;
   ref?: Ref<TextInputInstance>;
 };
 
 // Campo de formulario con la etiqueta arriba.
-export function CampoTexto({ etiqueta, multiline, error, ref, ...resto }: Props) {
+export function CampoTexto({ etiqueta, multiline, error, codigo, ref, ...resto }: Props) {
   return (
     <View style={estilos.base}>
       <Texto variante="cuerpoFuerte">{etiqueta}</Texto>
@@ -22,7 +24,7 @@ export function CampoTexto({ etiqueta, multiline, error, ref, ...resto }: Props)
         accessibilityLabel={error ? `${etiqueta}. ${error}` : etiqueta}
         placeholderTextColor={colores.textoSecundario}
         multiline={multiline}
-        style={[estilos.campo, multiline && estilos.multilinea, error && estilos.conError]}
+        style={[estilos.campo, multiline && estilos.multilinea, codigo && estilos.codigo, error && estilos.conError]}
         {...resto}
       />
       {error && (
@@ -54,6 +56,13 @@ const estilos = StyleSheet.create({
   multilinea: {
     minHeight: 88,
     textAlignVertical: 'top',
+  },
+  codigo: {
+    minHeight: 64,
+    fontFamily: fuentes.bold,
+    fontSize: 28,
+    letterSpacing: 8,
+    textAlign: 'center',
   },
   // Más grueso, para que se note también sin distinguir el color.
   conError: {

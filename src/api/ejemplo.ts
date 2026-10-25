@@ -37,6 +37,14 @@ function haceDias(dias: number, horas: number, minutos: number): string {
   return fecha.toISOString();
 }
 
+// Para probar Vincular y Aceptar invitación. El vencido da el mismo 404 que uno mal escrito, como el backend.
+export const codigosDePrueba = {
+  vinculacion: 'K7M4PX',
+  vinculacionVencido: 'H3Q9WZ',
+  invitacion: 'Xk3vP9qL2mN8rT5wY7zA4bC6dE2fGhJu',
+  invitacionVencida: 'Vn8cQ7mP2xK9rT4wY6zA3bC5dE2fGhJu',
+};
+
 // La cuenta con la que se entra (GET /auth/yo).
 export const usuario: Usuario = {
   id: 1,

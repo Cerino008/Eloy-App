@@ -33,6 +33,20 @@ export type RegistroNuevo = {
   password: string;
 };
 
+// VincularIn: con idPersona, Eloy pasa a ser de una persona que ya sigo (hace falta ser administrador);
+// sin idPersona se crea una persona nueva con nombrePersona.
+export type VinculacionNueva = {
+  codigo: string;
+  idPersona?: number;
+  nombrePersona?: string;
+};
+
+// VincularOut
+export type Vinculacion = {
+  idPersona: number;
+  idDispositivo: number;
+};
+
 // Quién usa la app: la cuenta y su lugar en la familia de la persona actual.
 export type Yo = {
   usuario: Usuario;

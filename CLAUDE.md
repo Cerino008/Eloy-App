@@ -26,16 +26,17 @@ app/
   (tabs)/recordatorios.tsx
   (tabs)/familia.tsx
   alerta/[id].tsx          pantalla completa, encima de las pestañas
-  vincular.tsx
+  vincular.tsx             QR (expo-camera) o código a mano; desde la bienvenida pide el nombre de la persona
   nuevo-recordatorio.tsx   modal
   login.tsx                sin sesión
   registro.tsx             sin sesión
   bienvenida.tsx           con sesión pero sin personas: "Vincular a Eloy" / "Tengo una invitación"
-  invitacion.tsx
+  invitacion.tsx           aceptar una invitación; acepta ?codigo= en la ruta
 src/
   tema.ts                  colores, tipografía, espacios (única fuente de estilos)
   sesion.tsx               tokens en expo-secure-store, SesionProvider y useSesion()
   validaciones.ts          avisos de los formularios (email, contraseña…)
+  codigos.ts               alfabeto del código de Eloy (el de backend/app/seguridad.py) y código dentro de un link
   componentes/             Tarjeta, Boton, Avatar, BurbujaMensaje, FilaRecordatorio, PuntoEstado...
   api/tipos.ts             contrato con el backend
   api/ejemplo.ts           datos de ejemplo (Marta, Vero, Juan)
@@ -89,7 +90,7 @@ El contrato real es el del backend: **`backend/app/schemas.py`** (qué entra y s
 
 **Pantallas nuevas:** los tipos de `src/api/tipos.ts` siguen los nombres de `schemas.py` pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`, `atendida_por_mi` → `atendidaPorMi`).
 
-Ya alineados con `schemas.py` (camelCase): `Tokens`, `Usuario`, `PersonaResumen`, `Invitacion` y `Alerta`. `Yo` = `{ usuario, persona }`: el usuario de `GET /auth/yo` más la persona actual de `GET /personas` (por ahora, la primera).
+Ya alineados con `schemas.py` (camelCase): `Tokens`, `Usuario`, `PersonaResumen`, `Invitacion`, `VinculacionNueva` (`VincularIn`), `Vinculacion` (`VincularOut`) y `Alerta`. `Yo` = `{ usuario, persona }`: el usuario de `GET /auth/yo` más la persona actual de `GET /personas` (por ahora, la primera).
 
 Tipos que la app usa hoy (borrador anterior al backend; se alinean con `schemas.py` al conectar cada pantalla):
 
@@ -180,6 +181,8 @@ Lo que la app simula en `src/api/cliente.ts` y el backend ya tiene; al conectar,
 - **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expira_en }`. El código es largo y viaja dentro del link: la app comparte el link (y el código aparte, por si lo piden).
 - **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización. Solo administradores (los demás ven el volumen sin slider).
 - **Restaurar de fábrica:** `POST /dispositivos/{id}/restaurar` con `{"confirmacion": "RESTAURAR"}` (la app lo manda tras el segundo aviso); responde 202 y 409 si ya hay una en curso. `restaurando` en el dispositivo indica que está pendiente.
+- **Vincular:** `POST /dispositivos/vincular` responde el mismo 404 para un código mal escrito o vencido (la app muestra un solo texto), 429 tras 5 intentos y 409 si ese Eloy ya está vinculado. Con `id_persona` hace falta ser administrador: en Familia, "Vincular a Eloy" solo lo ven ellos.
+- **Aceptar invitación:** `POST /invitaciones/aceptar` devuelve `PersonaResumenOut`; 404 si no existe, se usó o venció, y 409 si ya sos parte de la familia.
 - **Atender una alerta:** `POST /alertas/{id}/atender` responde **409** si otro familiar ya la tomó; el `detail` dice quién ("Vero ya se está ocupando").
 
 ### Pendiente con Héctor

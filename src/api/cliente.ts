@@ -18,6 +18,8 @@ import type {
   RegistroNuevo,
   Tokens,
   Usuario,
+  Vinculacion,
+  VinculacionNueva,
   Yo,
 } from './tipos';
 
@@ -46,8 +48,10 @@ const familiares: Familiar[] = [...ejemplo.familiares];
 let dispositivo: Dispositivo | null = ejemplo.escenario.sinDispositivo ? null : { ...ejemplo.dispositivo };
 let alerta: Alerta | null = ejemplo.escenario.alertaAbierta ? { ...ejemplo.alerta } : null;
 let usuario: Usuario = { ...ejemplo.usuario };
-// Una cuenta recién creada todavía no sigue a nadie, como en el backend.
-let cuentaNueva = false;
+// A quién sigue la cuenta. Una cuenta recién creada todavía no sigue a nadie, como en el backend.
+let personas: PersonaResumen[] = ejemplo.escenario.sinPersonas ? [] : [...ejemplo.personas];
+// Como limitador_vincular del backend: 5 códigos equivocados y hay que esperar.
+let intentosVincular = 0;
 
 function buscarAlerta(id: number): Alerta {
   if (!alerta || alerta.id !== id) throw new ErrorApi(404, 'Alerta no encontrada');
@@ -90,7 +94,7 @@ export const api = {
         throw new ErrorApi(401, 'Email o contraseña incorrectos');
       }
       usuario = { ...ejemplo.usuario, email: limpio };
-      cuentaNueva = false;
+      personas = ejemplo.escenario.sinPersonas ? [] : [...ejemplo.personas];
       return tokensNuevos();
     }),
 
@@ -100,7 +104,7 @@ export const api = {
       const email = datos.email.trim().toLowerCase();
       if (email === ejemplo.emailsDePrueba.registrado) throw new ErrorApi(409, 'Ya hay una cuenta con ese email');
       usuario = { id: usuario.id + 100, nombre: datos.nombre.trim(), apellido: null, email, telefono: null };
-      cuentaNueva = true;
+      personas = [];
       return tokensNuevos();
     }),
 
@@ -111,13 +115,12 @@ export const api = {
   usuario: (): Promise<Usuario> => simularServidor(() => usuario),
 
   // GET /personas: a quién sigo y con qué rol.
-  personas: (): Promise<PersonaResumen[]> =>
-    simularServidor(() => (cuentaNueva || ejemplo.escenario.sinPersonas ? [] : ejemplo.personas)),
+  personas: (): Promise<PersonaResumen[]> => simularServidor(() => personas),
 
   // La cuenta más su lugar en la familia. Por ahora la persona actual es la primera de la lista.
   yo: async (): Promise<Yo> => {
-    const [cuenta, personas] = await Promise.all([api.usuario(), api.personas()]);
-    const persona = personas[0];
+    const [cuenta, lista] = await Promise.all([api.usuario(), api.personas()]);
+    const persona = lista[0];
     if (!persona) throw new ErrorApi(404, 'Todavía no seguís a ninguna persona');
     return { usuario: cuenta, persona };
   },
@@ -202,6 +205,43 @@ export const api = {
         codigo,
         expiraEn: new Date(Date.now() + SIETE_DIAS_MS).toISOString(),
       };
+    }),
+
+  // POST /dispositivos/vincular. Quien vincula queda como administrador.
+  // La simulación sigue con los datos de Marta aunque escriban otro nombre, y deja usar el código
+  // válido más de una vez (en el backend, una vez usado da 404).
+  vincular: (datos: VinculacionNueva): Promise<Vinculacion> =>
+    simularServidor(() => {
+      if (intentosVincular >= 5) throw new ErrorApi(429, 'Demasiados intentos. Probá en 15 minutos.');
+      if (datos.codigo.trim().toUpperCase() !== ejemplo.codigosDePrueba.vinculacion) {
+        intentosVincular += 1;
+        throw new ErrorApi(404, 'Código inválido o vencido. Pedile uno nuevo a Eloy.');
+      }
+      let persona: PersonaResumen;
+      if (datos.idPersona !== undefined) {
+        const existente = personas.find((p) => p.id === datos.idPersona);
+        if (!existente) throw new ErrorApi(404, 'Persona no encontrada');
+        if (existente.miRol !== 'administrador') throw new ErrorApi(403, 'Solo un administrador puede hacer esto');
+        persona = existente;
+      } else {
+        persona = { ...ejemplo.personas[0], miRol: 'administrador' };
+        personas = [...personas, persona];
+      }
+      intentosVincular = 0;
+      dispositivo = { ...ejemplo.dispositivo, conectado: true, ultimaConexion: new Date().toISOString() };
+      return { idPersona: persona.id, idDispositivo: 1 };
+    }),
+
+  // POST /invitaciones/aceptar: devuelve la persona a la que me sumé.
+  aceptarInvitacion: (codigo: string): Promise<PersonaResumen> =>
+    simularServidor(() => {
+      if (codigo !== ejemplo.codigosDePrueba.invitacion) {
+        throw new ErrorApi(404, 'La invitación no existe, ya se usó o venció');
+      }
+      const persona = ejemplo.personas[0];
+      if (personas.some((p) => p.id === persona.id)) throw new ErrorApi(409, 'Ya sos parte de esta familia');
+      personas = [...personas, persona];
+      return persona;
     }),
 
   alerta: (id: number): Promise<Alerta> => simularServidor(() => buscarAlerta(id)),

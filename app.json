@@ -31,7 +31,15 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Eloy usa la cámara para leer el código QR que aparece en la pantalla de Eloy.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "scheme": "eloy",
     "backgroundColor": "#F4F1EA",
