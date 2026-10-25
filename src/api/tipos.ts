@@ -1,7 +1,9 @@
-// Contrato con el backend (borrador; ajustar con Héctor).
-// Fechas siempre en UTC ISO 8601; la app las muestra en hora local.
+// Contrato con el backend: los modelos de backend/app/schemas.py, con los mismos nombres pero en camelCase.
+// Fechas siempre en UTC ISO 8601 (las de solo día, "2026-10-23"); la app las muestra en hora local.
 
-// ---- Cuenta (TokensOut, UsuarioOut, PersonaResumenOut y RegistroIn de schemas.py, en camelCase)
+export type Rol = 'administrador' | 'familiar';
+
+// ---- Cuenta (TokensOut, UsuarioOut, PersonaResumenOut, RegistroIn)
 
 export type Tokens = {
   accessToken: string;
@@ -22,7 +24,7 @@ export type Usuario = {
 export type PersonaResumen = {
   id: number;
   nombre: string;
-  miRol: 'administrador' | 'familiar';
+  miRol: Rol;
   idMiFamiliar: number;
 };
 
@@ -47,41 +49,55 @@ export type Vinculacion = {
   idDispositivo: number;
 };
 
-// Quién usa la app: la cuenta y su lugar en la familia de la persona actual.
-export type Yo = {
-  usuario: Usuario;
-  persona: PersonaResumen;
-};
-
-// ---- Pantallas
+// ---- Inicio (InicioOut, GET /personas/{id}/inicio)
 
 export type EstadoPersona = 'bien' | 'atencion' | 'sin_conexion' | 'alerta';
 
-export type Hoy = {
-  persona: { id: number; nombre: string; telefono: string | null };
+// ResumenOut. Eloy lo escribe a las 21: durante el día viene el de ayer (esDeHoy = false).
+export type Resumen = {
+  fecha: string;
+  texto: string;
+  esDeHoy: boolean;
+};
+
+// RecordatorioCortoOut
+export type RecordatorioCorto = {
+  id: number;
+  hora: string;
+  titulo: string;
+};
+
+export type Inicio = {
+  persona: { id: number; nombre: string };
   estado: EstadoPersona;
+  idAlertaAbierta: number | null;
   ultimaCharla: string | null;
-  resumen: string | null;
+  resumen: Resumen | null;
   charlas: number;
   minutos: number;
-  recordatorios: { cumplidos: number; total: number };
-  proximo: { hora: string; titulo: string } | null;
-  alertaAbiertaId: number | null;
+  recordatoriosCumplidos: number;
+  recordatoriosTotal: number;
+  proximoRecordatorio: RecordatorioCorto | null;
 };
+
+// ---- Mensajes (MensajeOut, GET /personas/{id}/mensajes: los más nuevos primero, de a 50)
 
 export type Mensaje = {
   id: number;
   direccion: 'de_familia' | 'a_familia';
-  de: string;
-  deFamiliarId: number | null; // null = lo mandó la persona (Marta). Pendiente de pedírselo a Héctor.
-  para: string | null; // null = toda la familia
+  de: string | null;
+  para: string | null;
+  esMio: boolean;
   texto: string | null;
-  audioUrl: string | null;
+  audioUrl: string | null; // link firmado, vence en minutos
   audioDuracionSeg: number | null;
   estado: 'pendiente' | 'entregado' | 'leido';
+  entregadoEn: string | null;
   leidoEn: string | null;
   creadoEn: string;
 };
+
+// ---- Recordatorios (RecordatorioIn, RecordatorioOut, RecordatoriosOut)
 
 export type DiaSemana =
   | 'lunes'
@@ -92,45 +108,84 @@ export type DiaSemana =
   | 'sabado'
   | 'domingo';
 
+export type Repeticion = 'una_vez' | 'diaria' | 'semanal';
+
+// RecordatorioIn: lo que manda la app para crear uno.
+export type RecordatorioNuevo = {
+  titulo: string;
+  descripcion: string | null;
+  hora: string; // "09:00", hora local de la persona
+  repeticion: Repeticion;
+  diasSemana: DiaSemana[] | null; // solo en los semanales
+  fechaUnica: string | null; // "2026-10-23", solo en los de una vez
+};
+
 export type Recordatorio = {
   id: number;
   titulo: string;
   descripcion: string | null;
-  hora: string; // "09:00", hora local de la persona
-  repeticion: 'una_vez' | 'diaria' | 'semanal';
-  diasSemana: DiaSemana[] | null;
-  fechaUnica: string | null; // "2026-10-23"
-  estadoHoy?: 'sono' | 'pendiente';
+  hora: string;
+  repeticion: Repeticion;
+  diasSemana: DiaSemana[]; // vacía si no es semanal
+  fechaUnica: string | null;
+  creadoDesde: 'app' | 'eloy';
+  sincronizado: boolean; // false = Eloy todavía no recibió el último cambio
+  estado: 'sono' | 'pendiente' | null; // solo en la lista de hoy
+  proximaFecha: string | null; // solo en próximos días
 };
 
-// Lo que manda la app para crear uno: el servidor pone el id y calcula estadoHoy.
-export type RecordatorioNuevo = Omit<Recordatorio, 'id' | 'estadoHoy'>;
+// GET /personas/{id}/recordatorios: el servidor ya los separa y los ordena.
+export type Recordatorios = {
+  fecha: string;
+  hoy: Recordatorio[];
+  proximos: Recordatorio[];
+};
+
+// ---- Familia (FamiliarOut, DispositivoOut, FamiliaOut, InvitacionOut)
 
 export type Familiar = {
   id: number;
   nombre: string;
   parentesco: string | null;
-  rol: 'administrador' | 'familiar';
+  rol: Rol;
+  recibeAlertas: boolean;
   prioridadAlerta: number | null;
+  telefono: string | null;
   tieneCuenta: boolean;
+  soyYo: boolean;
 };
 
-// InvitacionOut: se comparte el link; el código viaja adentro (y se muestra por si lo piden aparte).
+export type Dispositivo = {
+  id: number;
+  conectado: boolean;
+  ultimaConexion: string | null;
+  wifiSsid: string | null;
+  volumen: number;
+  versionSoftware: string | null;
+  restaurando: boolean; // pidieron restaurarlo y Eloy todavía no lo hizo
+};
+
+// GET /personas/{id}/familia
+export type Familia = {
+  miRol: Rol;
+  familiares: Familiar[];
+  dispositivos: Dispositivo[];
+};
+
+// Se comparte el link; el código viaja adentro (y se muestra por si lo piden aparte).
 export type Invitacion = {
   link: string;
   codigo: string;
   expiraEn: string;
 };
 
-export type Dispositivo = {
-  conectado: boolean;
-  ultimaConexion: string | null;
-  wifiSsid: string | null;
-  volumen: number;
-  versionSoftware: string | null;
+// La respuesta 202 de volumen y restaurar: el pedido quedó anotado y Eloy lo hace en su próxima sincronización.
+export type PedidoAEloy = {
+  detalle: string;
 };
 
-// AlertaOut de backend/app/schemas.py, en camelCase.
+// ---- Alertas (AlertaOut)
+
 export type Alerta = {
   id: number;
   idPersona: number;

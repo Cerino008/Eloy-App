@@ -1,4 +1,6 @@
 // Datos de ejemplo mientras no hay backend. Solo los lee cliente.ts, nunca las pantallas.
+// Están como los guarda la base: lo que depende de quién pregunta o de la hora (esMio, soyYo, el estado
+// de los recordatorios de hoy...) lo calcula cliente.ts al responder, como el servidor.
 import { aFechaTexto } from '@/fechas';
 
 import type {
@@ -6,21 +8,28 @@ import type {
   Dispositivo,
   EstadoPersona,
   Familiar,
-  Hoy,
+  Inicio,
   Mensaje,
   PersonaResumen,
   Recordatorio,
   Usuario,
 } from './tipos';
 
+export type MensajeGuardado = Omit<Mensaje, 'esMio'> & {
+  idFamiliarEmisor: number | null; // null = lo mandó la persona
+};
+export type RecordatorioGuardado = Omit<Recordatorio, 'estado' | 'proximaFecha'>;
+export type FamiliarGuardado = Omit<Familiar, 'soyYo'>;
+
 // Para probar otros casos en el teléfono: cambiá estos valores y guardá.
 export const escenario = {
-  estado: 'bien' as EstadoPersona,
+  estado: 'bien' as EstadoPersona, // el que calcularía el servidor si no hay alerta ni falta conexión
   alertaAbierta: false,
   fallar: false, // las llamadas a la API fallan, para ver el estado de error
   sinDispositivo: false, // todavía no hay un Eloy vinculado
   atendidaPorOtro: false, // "Ya me ocupo yo" falla como el 409 del backend: Vero ya la tomó
   sinPersonas: false, // la cuenta todavía no sigue a nadie: después de entrar se ve la bienvenida
+  eloyNoSincroniza: false, // el volumen y restaurar quedan pendientes para siempre (Eloy sin conexión)
 };
 
 // Emails que fallan a propósito, para ver los errores del login y del registro.
@@ -55,26 +64,30 @@ export const usuario: Usuario = {
 };
 
 // Bautista en la familia de Marta.
-export const miFamiliar: Familiar = {
+export const miFamiliar: FamiliarGuardado = {
   id: 1,
   nombre: 'Bautista',
   parentesco: 'Hijo',
   rol: 'administrador',
+  recibeAlertas: true,
   prioridadAlerta: 2,
+  telefono: null,
   tieneCuenta: true,
 };
 
 const VERO_ID = 2;
 const JUAN_ID = 3;
 
-export const familiares: Familiar[] = [
+export const familiares: FamiliarGuardado[] = [
   miFamiliar,
   {
     id: VERO_ID,
     nombre: 'Vero',
     parentesco: 'Hija',
     rol: 'familiar',
+    recibeAlertas: true,
     prioridadAlerta: 1,
+    telefono: '+5491100000001',
     tieneCuenta: true,
   },
   {
@@ -82,17 +95,21 @@ export const familiares: Familiar[] = [
     nombre: 'Juan',
     parentesco: 'Nieto',
     rol: 'familiar',
+    recibeAlertas: true,
     prioridadAlerta: 3,
+    telefono: null,
     tieneCuenta: true,
   },
 ];
 
 export const dispositivo: Dispositivo = {
+  id: 1,
   conectado: true,
   ultimaConexion: new Date(Date.now() - 60 * 1000).toISOString(),
   wifiSsid: 'Casa de Marta',
   volumen: 70,
   versionSoftware: '1.2.0',
+  restaurando: false,
 };
 
 // A quién sigue la cuenta (GET /personas). La app usa la primera.
@@ -100,14 +117,17 @@ export const personas: PersonaResumen[] = [
   { id: 1, nombre: 'Marta', miRol: miFamiliar.rol, idMiFamiliar: miFamiliar.id },
 ];
 
-// Los recordatorios de hoy, el próximo y la alerta abierta los calcula cliente.ts.
-export const hoy: Omit<Hoy, 'recordatorios' | 'proximo' | 'alertaAbiertaId'> = {
-  persona: { id: 1, nombre: 'Marta', telefono: '+5491100000000' },
-  estado: escenario.estado,
+// El estado, los recordatorios de hoy, el próximo y la alerta abierta los calcula cliente.ts.
+export const inicio: Pick<Inicio, 'persona' | 'ultimaCharla' | 'resumen' | 'charlas' | 'minutos'> = {
+  persona: { id: 1, nombre: 'Marta' },
   ultimaCharla: haceDias(0, 10, 42),
-  resumen:
-    'Charló un rato a la mañana y contó que está tejiendo una bufanda para su nieta. ' +
-    'Tomó la pastilla de las 9 cuando Eloy se la recordó.',
+  resumen: {
+    fecha: aFechaTexto(new Date()),
+    texto:
+      'Charló un rato a la mañana y contó que está tejiendo una bufanda para su nieta. ' +
+      'Tomó la pastilla de las 9 cuando Eloy se la recordó.',
+    esDeHoy: true,
+  },
   charlas: 3,
   minutos: 18,
 };
@@ -142,16 +162,18 @@ function diaSiguiente(): string {
   return aFechaTexto(fecha);
 }
 
-// Sin estadoHoy: lo calcula el servidor (acá, cliente.ts) según el día y la hora.
-export const recordatorios: Recordatorio[] = [
+// Sin estado ni próxima fecha: los calcula el servidor (acá, cliente.ts) según el día y la hora.
+export const recordatorios: RecordatorioGuardado[] = [
   {
     id: 1,
     titulo: 'Pastilla de la presión',
     descripcion: 'la blanca, con agua',
     hora: '09:00',
     repeticion: 'diaria',
-    diasSemana: null,
+    diasSemana: [],
     fechaUnica: null,
+    creadoDesde: 'app',
+    sincronizado: true,
   },
   {
     id: 2,
@@ -159,8 +181,10 @@ export const recordatorios: Recordatorio[] = [
     descripcion: null,
     hora: '13:00',
     repeticion: 'diaria',
-    diasSemana: null,
+    diasSemana: [],
     fechaUnica: null,
+    creadoDesde: 'app',
+    sincronizado: true,
   },
   {
     id: 3,
@@ -168,8 +192,10 @@ export const recordatorios: Recordatorio[] = [
     descripcion: null,
     hora: '18:00',
     repeticion: 'diaria',
-    diasSemana: null,
+    diasSemana: [],
     fechaUnica: null,
+    creadoDesde: 'app',
+    sincronizado: true,
   },
   {
     id: 4,
@@ -177,8 +203,10 @@ export const recordatorios: Recordatorio[] = [
     descripcion: null,
     hora: '10:00',
     repeticion: 'una_vez',
-    diasSemana: null,
+    diasSemana: [],
     fechaUnica: diaSiguiente(),
+    creadoDesde: 'app',
+    sincronizado: true,
   },
   {
     id: 5,
@@ -188,21 +216,24 @@ export const recordatorios: Recordatorio[] = [
     repeticion: 'semanal',
     diasSemana: ['lunes', 'jueves'],
     fechaUnica: null,
+    creadoDesde: 'eloy',
+    sincronizado: true,
   },
 ];
 
 // Ordenados del más viejo al más nuevo.
-export const mensajes: Mensaje[] = [
+export const mensajes: MensajeGuardado[] = [
   {
     id: 1,
     direccion: 'de_familia',
     de: 'Juan',
-    deFamiliarId: JUAN_ID,
+    idFamiliarEmisor: JUAN_ID,
     para: null,
     texto: 'Abuela, el sábado paso a verte con Sofi.',
     audioUrl: null,
     audioDuracionSeg: null,
     estado: 'leido',
+    entregadoEn: haceDias(5, 18, 33),
     leidoEn: haceDias(5, 18, 40),
     creadoEn: haceDias(5, 18, 32),
   },
@@ -210,12 +241,13 @@ export const mensajes: Mensaje[] = [
     id: 2,
     direccion: 'a_familia',
     de: 'Marta',
-    deFamiliarId: null,
+    idFamiliarEmisor: null,
     para: null,
     texto: 'Hoy fui a la plaza con Rosa y tomamos un café.',
     audioUrl: null,
     audioDuracionSeg: null,
     estado: 'entregado',
+    entregadoEn: haceDias(1, 17, 15),
     leidoEn: null,
     creadoEn: haceDias(1, 17, 15),
   },
@@ -223,12 +255,13 @@ export const mensajes: Mensaje[] = [
     id: 3,
     direccion: 'de_familia',
     de: 'Vero',
-    deFamiliarId: VERO_ID,
+    idFamiliarEmisor: VERO_ID,
     para: null,
     texto: '¡Qué lindo, ma! Mandale saludos a Rosa.',
     audioUrl: null,
     audioDuracionSeg: null,
     estado: 'leido',
+    entregadoEn: haceDias(1, 17, 31),
     leidoEn: haceDias(1, 17, 52),
     creadoEn: haceDias(1, 17, 30),
   },
@@ -236,13 +269,14 @@ export const mensajes: Mensaje[] = [
     id: 4,
     direccion: 'a_familia',
     de: 'Marta',
-    deFamiliarId: null,
+    idFamiliarEmisor: null,
     para: null,
     texto: 'Decile a Vero que el domingo la espero a comer',
     // Todavía no hay audios reales: la burbuja se muestra pero no reproduce.
     audioUrl: 'ejemplo://audio/4',
     audioDuracionSeg: 4,
     estado: 'entregado',
+    entregadoEn: haceDias(0, 10, 45),
     leidoEn: null,
     creadoEn: haceDias(0, 10, 45),
   },
@@ -250,12 +284,13 @@ export const mensajes: Mensaje[] = [
     id: 5,
     direccion: 'de_familia',
     de: 'Bautista',
-    deFamiliarId: miFamiliar.id,
+    idFamiliarEmisor: miFamiliar.id,
     para: null,
     texto: '¡Dale, mamá! Le aviso. Yo llevo las empanadas.',
     audioUrl: null,
     audioDuracionSeg: null,
     estado: 'leido',
+    entregadoEn: haceDias(0, 11, 6),
     leidoEn: haceDias(0, 11, 20),
     creadoEn: haceDias(0, 11, 5),
   },
@@ -263,12 +298,13 @@ export const mensajes: Mensaje[] = [
     id: 6,
     direccion: 'de_familia',
     de: 'Bautista',
-    deFamiliarId: miFamiliar.id,
+    idFamiliarEmisor: miFamiliar.id,
     para: null,
     texto: '¿Te acordaste de la pastilla del mediodía?',
     audioUrl: null,
     audioDuracionSeg: null,
     estado: 'pendiente',
+    entregadoEn: null,
     leidoEn: null,
     creadoEn: haceDias(0, 12, 10),
   },

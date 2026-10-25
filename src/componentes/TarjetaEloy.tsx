@@ -13,6 +13,10 @@ type Props = {
   dispositivo: Dispositivo;
   // Se llama al soltar el slider, no en cada movimiento. Sin esta función el volumen se muestra sin slider.
   onCambiarVolumen?: (volumen: number) => void;
+  // Lo pedido que Eloy todavía no aplicó: el slider se queda ahí en vez de volver al volumen actual.
+  volumenPedido?: number | null;
+  // Debajo del slider, ej. "Eloy lo cambia en la próxima sincronización."
+  avisoVolumen?: string | null;
 };
 
 function FilaDato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
@@ -27,11 +31,12 @@ function FilaDato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 }
 
 // Estado de Eloy: conexión, WiFi, volumen y versión.
-export function TarjetaEloy({ dispositivo, onCambiarVolumen }: Props) {
-  // El porcentaje sigue al dedo; el slider solo se mueve con el valor guardado,
-  // así no salta mientras se arrastra y vuelve solo si guardar falla.
-  const [volumen, setVolumen] = useState(dispositivo.volumen);
-  useEffect(() => setVolumen(dispositivo.volumen), [dispositivo.volumen]);
+export function TarjetaEloy({ dispositivo, onCambiarVolumen, volumenPedido, avisoVolumen }: Props) {
+  // El porcentaje sigue al dedo; el slider solo se mueve con el valor pedido o el de Eloy,
+  // así no salta mientras se arrastra y vuelve solo si el pedido falla.
+  const valor = volumenPedido ?? dispositivo.volumen;
+  const [volumen, setVolumen] = useState(valor);
+  useEffect(() => setVolumen(valor), [valor]);
 
   return (
     <Tarjeta style={estilos.tarjeta}>
@@ -59,7 +64,7 @@ export function TarjetaEloy({ dispositivo, onCambiarVolumen }: Props) {
             <Texto variante="cuerpoFuerte">{volumen} %</Texto>
           </View>
           <Slider
-            value={dispositivo.volumen}
+            value={valor}
             minimumValue={0}
             maximumValue={100}
             step={5}
@@ -73,6 +78,11 @@ export function TarjetaEloy({ dispositivo, onCambiarVolumen }: Props) {
             accessibilityValue={{ text: `${volumen} %` }}
             style={estilos.slider}
           />
+          {avisoVolumen && (
+            <Texto variante="chica" accessibilityLiveRegion="polite">
+              {avisoVolumen}
+            </Texto>
+          )}
         </View>
       ) : (
         <FilaDato etiqueta="Volumen" valor={`${dispositivo.volumen} %`} />

@@ -29,7 +29,7 @@ export function cuandoSuena(recordatorio: Recordatorio, ahora: Date = new Date()
     case 'diaria':
       return 'Todos los días';
     case 'semanal': {
-      const dias = DIAS_SEMANA.filter((dia) => recordatorio.diasSemana?.includes(dia));
+      const dias = DIAS_SEMANA.filter((dia) => recordatorio.diasSemana.includes(dia));
       if (dias.length === 7) return 'Todos los días';
       if (dias.length === 5 && !dias.includes('sabado') && !dias.includes('domingo')) return 'De lunes a viernes';
       return capitalizar(enumerar(dias.map((dia) => NOMBRE_DIA[dia])));
@@ -41,32 +41,17 @@ export function cuandoSuena(recordatorio: Recordatorio, ahora: Date = new Date()
   }
 }
 
-export function suenaElDia(recordatorio: Recordatorio, fecha: Date): boolean {
+// Si suena ese día (sin mirar la hora).
+export function suenaElDia(
+  recordatorio: Pick<Recordatorio, 'repeticion' | 'diasSemana' | 'fechaUnica'>,
+  fecha: Date,
+): boolean {
   switch (recordatorio.repeticion) {
     case 'diaria':
       return true;
     case 'semanal':
-      return recordatorio.diasSemana?.includes(diaSemanaDe(fecha)) ?? false;
+      return recordatorio.diasSemana.includes(diaSemanaDe(fecha));
     case 'una_vez':
       return recordatorio.fechaUnica === aFechaTexto(fecha);
   }
-}
-
-// La próxima vez que va a sonar, desde ahora. null si ya no vuelve a sonar.
-export function proximaVez(recordatorio: Recordatorio, ahora: Date = new Date()): Date | null {
-  const [horas, minutos] = recordatorio.hora.split(':').map(Number);
-
-  if (recordatorio.repeticion === 'una_vez') {
-    if (!recordatorio.fechaUnica) return null;
-    const fecha = fechaLocal(recordatorio.fechaUnica);
-    fecha.setHours(horas, minutos, 0, 0);
-    return fecha >= ahora ? fecha : null;
-  }
-
-  // En 8 días seguro aparece cualquier día de la semana, incluso hoy si ya pasó la hora.
-  for (let i = 0; i <= 7; i++) {
-    const fecha = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + i, horas, minutos);
-    if (fecha >= ahora && suenaElDia(recordatorio, fecha)) return fecha;
-  }
-  return null;
 }

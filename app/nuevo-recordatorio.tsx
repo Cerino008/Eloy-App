@@ -2,8 +2,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
-import type { DiaSemana, Recordatorio, RecordatorioNuevo } from '@/api/tipos';
+import type { DiaSemana, RecordatorioNuevo, Repeticion } from '@/api/tipos';
 import { useCrearRecordatorio } from '@/api/useCrearRecordatorio';
+import { usePersonaActual } from '@/api/usePersonaActual';
 import {
   Boton,
   BotonVolver,
@@ -17,8 +18,6 @@ import {
 } from '@/componentes';
 import { aFechaTexto, aHoraTexto } from '@/fechas';
 import { espacio } from '@/tema';
-
-type Repeticion = Recordatorio['repeticion'];
 
 const OPCIONES: { valor: Repeticion; etiqueta: string }[] = [
   { valor: 'diaria', etiqueta: 'Todos los días' },
@@ -53,7 +52,7 @@ function nueveDeLaManana(): Date {
 
 export default function NuevoRecordatorio() {
   const router = useRouter();
-  const crear = useCrearRecordatorio();
+  const crear = useCrearRecordatorio(usePersonaActual().id);
 
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');

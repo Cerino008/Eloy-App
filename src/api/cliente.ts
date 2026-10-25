@@ -1,26 +1,27 @@
-// Todas las llamadas a la API pasan por acá. Hoy devuelven los datos de ejemplo;
-// cuando el backend esté listo, solo cambia este archivo.
-import { aHoraTexto } from '@/fechas';
-import { suenaElDia } from '@/recordatorios';
+// Todas las llamadas a la API pasan por acá. Hoy devuelven los datos de ejemplo armados como lo haría
+// el servidor; cuando el backend esté listo, solo cambia este archivo.
+import { aFechaTexto, aHoraTexto } from '@/fechas';
+import { DIAS_SEMANA, diaSemanaDe, suenaElDia } from '@/recordatorios';
 
 import { ErrorApi } from './errores';
 import * as ejemplo from './ejemplo';
 import type {
   Alerta,
   Dispositivo,
-  Familiar,
-  Hoy,
+  Familia,
+  Inicio,
   Invitacion,
   Mensaje,
+  PedidoAEloy,
   PersonaResumen,
   Recordatorio,
   RecordatorioNuevo,
+  Recordatorios,
   RegistroNuevo,
   Tokens,
   Usuario,
   Vinculacion,
   VinculacionNueva,
-  Yo,
 } from './tipos';
 
 const DEMORA_MS = 700;
@@ -41,10 +42,18 @@ function simularServidor<T>(datos: () => T): Promise<T> {
   });
 }
 
+// Eloy sincroniza cada 30 segundos: lo que se le pide (volumen, restaurar, un recordatorio nuevo) lo
+// hace recién ahí. Con escenario.eloyNoSincroniza nunca lo hace.
+const SINCRONIZACION_MS = 30 * 1000;
+
+function enLaProximaSincronizacion(hacer: () => void) {
+  if (!ejemplo.escenario.eloyNoSincroniza) setTimeout(hacer, SINCRONIZACION_MS);
+}
+
 // Hacen de base de datos: lo que se manda queda acá hasta que se recarga la app.
-const mensajes: Mensaje[] = [...ejemplo.mensajes];
-const recordatorios: Recordatorio[] = [...ejemplo.recordatorios];
-const familiares: Familiar[] = [...ejemplo.familiares];
+const mensajes: ejemplo.MensajeGuardado[] = [...ejemplo.mensajes];
+const recordatorios: ejemplo.RecordatorioGuardado[] = [...ejemplo.recordatorios];
+const familiares: ejemplo.FamiliarGuardado[] = [...ejemplo.familiares];
 let dispositivo: Dispositivo | null = ejemplo.escenario.sinDispositivo ? null : { ...ejemplo.dispositivo };
 let alerta: Alerta | null = ejemplo.escenario.alertaAbierta ? { ...ejemplo.alerta } : null;
 let usuario: Usuario = { ...ejemplo.usuario };
@@ -53,22 +62,84 @@ let personas: PersonaResumen[] = ejemplo.escenario.sinPersonas ? [] : [...ejempl
 // Como limitador_vincular del backend: 5 códigos equivocados y hay que esperar.
 let intentosVincular = 0;
 
+// Como familiar_de() del backend: si no sigo a esa persona, para mí no existe.
+function personaMia(idPersona: number): PersonaResumen {
+  const persona = personas.find((p) => p.id === idPersona);
+  if (!persona) throw new ErrorApi(404, 'Persona no encontrada');
+  return persona;
+}
+
+function exigirAdmin(persona: PersonaResumen) {
+  if (persona.miRol !== 'administrador') throw new ErrorApi(403, 'Solo un administrador puede hacer esto');
+}
+
+// El Eloy de la persona actual, si soy administrador (como _dispositivo_admin del backend).
+function miDispositivo(idDispositivo: number): Dispositivo {
+  if (!dispositivo || dispositivo.id !== idDispositivo || !personas[0]) throw new ErrorApi(404, 'Eloy no encontrado');
+  exigirAdmin(personas[0]);
+  return dispositivo;
+}
+
 function buscarAlerta(id: number): Alerta {
   if (!alerta || alerta.id !== id) throw new ErrorApi(404, 'Alerta no encontrada');
   return alerta;
 }
 
-// Lo que va a calcular el servidor: si suena hoy y, en ese caso, si ya sonó.
-function conEstadoDeHoy(recordatorio: Recordatorio, ahora: Date): Recordatorio {
-  if (!suenaElDia(recordatorio, ahora)) return { ...recordatorio, estadoHoy: undefined };
-  return { ...recordatorio, estadoHoy: recordatorio.hora <= aHoraTexto(ahora) ? 'sono' : 'pendiente' };
+function salidaMensaje(mensaje: ejemplo.MensajeGuardado, idMiFamiliar: number): Mensaje {
+  const { idFamiliarEmisor, ...resto } = mensaje;
+  return { ...resto, esMio: mensaje.direccion === 'de_familia' && idFamiliarEmisor === idMiFamiliar };
 }
 
-function recordatoriosDeHoy(ahora: Date): Recordatorio[] {
-  return recordatorios
-    .map((recordatorio) => conEstadoDeHoy(recordatorio, ahora))
-    .filter((recordatorio) => recordatorio.estadoHoy !== undefined)
-    .sort((a, b) => a.hora.localeCompare(b.hora));
+function salidaRecordatorio(
+  recordatorio: ejemplo.RecordatorioGuardado,
+  extra: Partial<Pick<Recordatorio, 'estado' | 'proximaFecha'>> = {},
+): Recordatorio {
+  return { ...recordatorio, estado: null, proximaFecha: null, ...extra };
+}
+
+// Como proxima_fecha() del backend, para "Próximos días" (no incluye hoy): los diarios y los semanales
+// que suenan hoy ya están en "Hoy"; los de una vez, si su fecha es más adelante.
+function proximaFecha(recordatorio: ejemplo.RecordatorioGuardado, ahora: Date): string | null {
+  if (recordatorio.repeticion === 'una_vez') {
+    return recordatorio.fechaUnica && recordatorio.fechaUnica > aFechaTexto(ahora) ? recordatorio.fechaUnica : null;
+  }
+  if (recordatorio.repeticion === 'semanal' && !recordatorio.diasSemana.includes(diaSemanaDe(ahora))) {
+    for (let i = 1; i <= 7; i++) {
+      const fecha = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + i);
+      if (recordatorio.diasSemana.includes(diaSemanaDe(fecha))) return aFechaTexto(fecha);
+    }
+  }
+  return null;
+}
+
+// Como recordatorios_del_dia() del backend: los de hoy con "sonó" o "pendiente", por hora,
+// y los de los próximos días, por fecha y hora.
+function armarRecordatorios(ahora: Date): Recordatorios {
+  const hora = aHoraTexto(ahora);
+  const porHora = [...recordatorios].sort((a, b) => a.hora.localeCompare(b.hora) || a.id - b.id);
+  const hoy = porHora
+    .filter((recordatorio) => suenaElDia(recordatorio, ahora))
+    .map((recordatorio) => salidaRecordatorio(recordatorio, { estado: recordatorio.hora <= hora ? 'sono' : 'pendiente' }));
+  const proximos = porHora
+    .map((recordatorio) => ({ recordatorio, fecha: proximaFecha(recordatorio, ahora) }))
+    .filter((x): x is { recordatorio: ejemplo.RecordatorioGuardado; fecha: string } => x.fecha !== null)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.recordatorio.hora.localeCompare(b.recordatorio.hora))
+    .map(({ recordatorio, fecha }) => salidaRecordatorio(recordatorio, { proximaFecha: fecha }));
+  return { fecha: aFechaTexto(ahora), hoy, proximos };
+}
+
+// Las mismas reglas que _validar_regla() del backend.
+function validarRecordatorio(datos: RecordatorioNuevo) {
+  const dias = datos.diasSemana ?? [];
+  if (datos.repeticion === 'semanal' && dias.length === 0) {
+    throw new ErrorApi(422, 'Un recordatorio semanal necesita al menos un día');
+  }
+  if (datos.repeticion !== 'semanal' && dias.length > 0) {
+    throw new ErrorApi(422, 'Los días solo van en recordatorios semanales');
+  }
+  if (datos.repeticion !== 'una_vez' && datos.fechaUnica !== null) {
+    throw new ErrorApi(422, 'La fecha solo va en recordatorios de una vez');
+  }
 }
 
 const LETRAS_TOKEN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -117,88 +188,141 @@ export const api = {
   // GET /personas: a quién sigo y con qué rol.
   personas: (): Promise<PersonaResumen[]> => simularServidor(() => personas),
 
-  // La cuenta más su lugar en la familia. Por ahora la persona actual es la primera de la lista.
-  yo: async (): Promise<Yo> => {
-    const [cuenta, lista] = await Promise.all([api.usuario(), api.personas()]);
-    const persona = lista[0];
-    if (!persona) throw new ErrorApi(404, 'Todavía no seguís a ninguna persona');
-    return { usuario: cuenta, persona };
-  },
-
-  hoy: (): Promise<Hoy> =>
+  // GET /personas/{id}/inicio
+  inicio: (idPersona: number): Promise<Inicio> =>
     simularServidor(() => {
-      const deHoy = recordatoriosDeHoy(new Date());
-      const siguiente = deHoy.find((recordatorio) => recordatorio.estadoHoy === 'pendiente');
-      // Como el backend: el estado es "alerta" mientras haya una alerta abierta, y solo entonces.
+      personaMia(idPersona);
+      const { hoy } = armarRecordatorios(new Date());
+      const proximo = hoy.find((recordatorio) => recordatorio.estado === 'pendiente');
+      // Como el backend: gana la alerta abierta; después, que Eloy no esté conectado.
       const abierta = alerta?.estado === 'abierta' ? alerta : null;
-      const estado = abierta ? 'alerta' : ejemplo.hoy.estado === 'alerta' ? 'bien' : ejemplo.hoy.estado;
+      const estado = abierta
+        ? 'alerta'
+        : !dispositivo?.conectado
+          ? 'sin_conexion'
+          : ejemplo.escenario.estado === 'alerta'
+            ? 'bien'
+            : ejemplo.escenario.estado;
       return {
-        ...ejemplo.hoy,
+        ...ejemplo.inicio,
         estado,
-        alertaAbiertaId: abierta?.id ?? null,
-        recordatorios: {
-          cumplidos: deHoy.filter((recordatorio) => recordatorio.estadoHoy === 'sono').length,
-          total: deHoy.length,
-        },
-        proximo: siguiente ? { hora: siguiente.hora, titulo: siguiente.titulo } : null,
+        idAlertaAbierta: abierta?.id ?? null,
+        recordatoriosCumplidos: hoy.filter((recordatorio) => recordatorio.estado === 'sono').length,
+        recordatoriosTotal: hoy.length,
+        proximoRecordatorio: proximo ? { id: proximo.id, hora: proximo.hora, titulo: proximo.titulo } : null,
       };
     }),
 
-  // Del más viejo al más nuevo.
-  mensajes: (): Promise<Mensaje[]> =>
-    simularServidor(() => [...mensajes].sort((a, b) => Date.parse(a.creadoEn) - Date.parse(b.creadoEn))),
-
-  enviarMensaje: (texto: string): Promise<Mensaje> =>
+  // GET /personas/{id}/mensajes: los más nuevos primero, de a 50 (los anteriores, con ?antes_de=).
+  mensajes: (idPersona: number): Promise<Mensaje[]> =>
     simularServidor(() => {
-      const nuevo: Mensaje = {
+      const persona = personaMia(idPersona);
+      return [...mensajes]
+        .sort((a, b) => Date.parse(b.creadoEn) - Date.parse(a.creadoEn) || b.id - a.id)
+        .slice(0, 50)
+        .map((mensaje) => salidaMensaje(mensaje, persona.idMiFamiliar));
+    }),
+
+  // POST /personas/{id}/mensajes. Quién lo manda sale de la sesión.
+  enviarMensaje: (idPersona: number, texto: string): Promise<Mensaje> =>
+    simularServidor(() => {
+      const persona = personaMia(idPersona);
+      const yo = familiares.find((familiar) => familiar.id === persona.idMiFamiliar);
+      const nuevo: ejemplo.MensajeGuardado = {
         id: Math.max(0, ...mensajes.map((m) => m.id)) + 1,
         direccion: 'de_familia',
-        de: ejemplo.miFamiliar.nombre,
-        deFamiliarId: ejemplo.miFamiliar.id,
-        para: null,
-        texto,
+        de: yo?.nombre ?? usuario.nombre,
+        idFamiliarEmisor: persona.idMiFamiliar,
+        para: persona.nombre,
+        texto: texto.trim(),
         audioUrl: null,
         audioDuracionSeg: null,
         estado: 'pendiente',
+        entregadoEn: null,
         leidoEn: null,
         creadoEn: new Date().toISOString(),
       };
       mensajes.push(nuevo);
-      return nuevo;
+      return salidaMensaje(nuevo, persona.idMiFamiliar);
     }),
 
-  // Ordenados por hora; los que suenan hoy traen estadoHoy.
-  recordatorios: (): Promise<Recordatorio[]> =>
+  // GET /personas/{id}/recordatorios
+  recordatorios: (idPersona: number): Promise<Recordatorios> =>
     simularServidor(() => {
-      const ahora = new Date();
-      return recordatorios
-        .map((recordatorio) => conEstadoDeHoy(recordatorio, ahora))
-        .sort((a, b) => a.hora.localeCompare(b.hora));
+      personaMia(idPersona);
+      return armarRecordatorios(new Date());
     }),
 
-  crearRecordatorio: (datos: RecordatorioNuevo): Promise<Recordatorio> =>
+  // POST /personas/{id}/recordatorios. Queda sin sincronizar hasta que Eloy lo recibe.
+  crearRecordatorio: (idPersona: number, datos: RecordatorioNuevo): Promise<Recordatorio> =>
     simularServidor(() => {
-      const nuevo: Recordatorio = { id: Math.max(0, ...recordatorios.map((r) => r.id)) + 1, ...datos };
+      personaMia(idPersona);
+      validarRecordatorio(datos);
+      const nuevo: ejemplo.RecordatorioGuardado = {
+        ...datos,
+        id: Math.max(0, ...recordatorios.map((r) => r.id)) + 1,
+        diasSemana: DIAS_SEMANA.filter((dia) => datos.diasSemana?.includes(dia)),
+        creadoDesde: 'app',
+        sincronizado: false,
+      };
       recordatorios.push(nuevo);
-      return conEstadoDeHoy(nuevo, new Date());
+      enLaProximaSincronizacion(() => {
+        nuevo.sincronizado = true;
+      });
+      return salidaRecordatorio(nuevo);
     }),
 
-  familiares: (): Promise<Familiar[]> => simularServidor(() => familiares),
-
-  // null: todavía no hay un Eloy vinculado.
-  dispositivo: (): Promise<Dispositivo | null> => simularServidor(() => dispositivo),
-
-  // En el backend: PATCH /dispositivos/{id}, responde 202 y Eloy lo aplica en la próxima sincronización.
-  cambiarVolumen: (volumen: number): Promise<Dispositivo> =>
+  // GET /personas/{id}/familia: los familiares, mi rol y el Eloy (o ninguno, si no está vinculado).
+  familia: (idPersona: number): Promise<Familia> =>
     simularServidor(() => {
-      if (!dispositivo) throw new Error('No hay un Eloy vinculado');
-      dispositivo = { ...dispositivo, volumen: Math.min(100, Math.max(0, Math.round(volumen))) };
-      return dispositivo;
+      const persona = personaMia(idPersona);
+      // Como el backend: primero los administradores, después por orden de aviso.
+      const ordenados = [...familiares].sort(
+        (a, b) =>
+          Number(b.rol === 'administrador') - Number(a.rol === 'administrador') ||
+          (a.prioridadAlerta ?? Infinity) - (b.prioridadAlerta ?? Infinity) ||
+          a.id - b.id,
+      );
+      return {
+        miRol: persona.miRol,
+        familiares: ordenados.map((familiar) => ({ ...familiar, soyYo: familiar.id === persona.idMiFamiliar })),
+        dispositivos: dispositivo ? [dispositivo] : [],
+      };
     }),
+
+  // PATCH /dispositivos/{id} (solo administradores): responde 202 y Eloy lo aplica al sincronizar.
+  cambiarVolumen: (idDispositivo: number, volumen: number): Promise<PedidoAEloy> =>
+    simularServidor(() => {
+      miDispositivo(idDispositivo);
+      if (!Number.isInteger(volumen) || volumen < 0 || volumen > 100) {
+        throw new ErrorApi(422, 'El volumen va de 0 a 100');
+      }
+      enLaProximaSincronizacion(() => {
+        if (dispositivo?.id === idDispositivo) dispositivo = { ...dispositivo, volumen };
+      });
+      return { detalle: 'Eloy lo aplica en la próxima sincronización' };
+    }),
+
+  // POST /dispositivos/{id}/restaurar con la segunda confirmación. Responde 202: cuando Eloy sincroniza,
+  // borra todo y queda desvinculado. Los familiares, mensajes y recordatorios siguen en el servidor.
+  restaurarFabrica: (idDispositivo: number): Promise<PedidoAEloy> => {
+    const cuerpo = { confirmacion: 'RESTAURAR' } as const;
+    return simularServidor(() => {
+      const actual = miDispositivo(idDispositivo);
+      if (cuerpo.confirmacion !== 'RESTAURAR') throw new ErrorApi(422, 'Falta la confirmación');
+      if (actual.restaurando) throw new ErrorApi(409, 'Ya hay una restauración en curso');
+      dispositivo = { ...actual, restaurando: true };
+      enLaProximaSincronizacion(() => {
+        if (dispositivo?.id === idDispositivo) dispositivo = null;
+      });
+      return { detalle: 'Eloy se restaura en la próxima sincronización' };
+    });
+  },
 
   // POST /personas/{id}/invitaciones (solo administradores). Vence a los 7 días.
-  invitarFamiliar: (): Promise<Invitacion> =>
+  invitarFamiliar: (idPersona: number): Promise<Invitacion> =>
     simularServidor(() => {
+      exigirAdmin(personaMia(idPersona));
       const codigo = tokenAlAzar(32);
       return {
         link: `https://eloy.app/invitacion?codigo=${codigo}`,
@@ -266,14 +390,5 @@ export const api = {
         atendidaEn: new Date().toISOString(),
       };
       return alerta;
-    }),
-
-  // Simula el borrado: sin Eloy, sin charlas, sin recordatorios y la familia solo con quien lo pidió.
-  restaurarFabrica: (): Promise<void> =>
-    simularServidor(() => {
-      dispositivo = null;
-      mensajes.length = 0;
-      recordatorios.length = 0;
-      familiares.splice(0, familiares.length, ejemplo.miFamiliar);
     }),
 };

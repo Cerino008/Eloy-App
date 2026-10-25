@@ -88,99 +88,74 @@ Accesibilidad: `accessibilityLabel` en botones que son solo ícono; contraste su
 
 El contrato real es el del backend: **`backend/app/schemas.py`** (qué entra y sale de cada endpoint) y **`backend/README.md`** (rutas, códigos de respuesta y notas para la app). Base de datos documentada en `docs/Eloy_Diagnostico_y_Base_de_Datos_v2.pdf`. Fechas de la API siempre en **UTC ISO 8601**; la app las muestra en hora local.
 
-**Pantallas nuevas:** los tipos de `src/api/tipos.ts` siguen los nombres de `schemas.py` pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`, `atendida_por_mi` → `atendidaPorMi`).
+Los tipos de `src/api/tipos.ts` son los de `schemas.py` con los mismos nombres pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`). `cliente.ts` simula las respuestas como el servidor (orden, separaciones, `esMio`, `soyYo`…): las pantallas no calculan nada de eso.
 
-Ya alineados con `schemas.py` (camelCase): `Tokens`, `Usuario`, `PersonaResumen`, `Invitacion`, `VinculacionNueva` (`VincularIn`), `Vinculacion` (`VincularOut`) y `Alerta`. `Yo` = `{ usuario, persona }`: el usuario de `GET /auth/yo` más la persona actual de `GET /personas` (por ahora, la primera).
-
-Tipos que la app usa hoy (borrador anterior al backend; se alinean con `schemas.py` al conectar cada pantalla):
+Las rutas de una persona llevan su id (`/personas/{id}/inicio`, `/mensajes`, `/recordatorios`, `/familia`): las pantallas lo toman de `usePersonaActual()` (por ahora, la primera de `GET /personas`) y las consultas lo llevan en la clave (`consultas.inicio(idPersona)`).
 
 ```ts
-export type EstadoPersona = 'bien' | 'atencion' | 'sin_conexion' | 'alerta';
+type Rol = 'administrador' | 'familiar';
 
-export type Hoy = {
-  persona: { id: number; nombre: string; telefono: string | null };
-  estado: EstadoPersona;
+// Cuenta
+type Tokens = { accessToken; refreshToken; tokenType; expiraEnSeg };                 // TokensOut
+type Usuario = { id; nombre; apellido; email; telefono };                             // UsuarioOut (GET /auth/yo)
+type PersonaResumen = { id; nombre; miRol: Rol; idMiFamiliar };                       // GET /personas
+type RegistroNuevo = { nombre; email; password };                                     // RegistroIn
+type VinculacionNueva = { codigo; idPersona?; nombrePersona? };                       // VincularIn
+type Vinculacion = { idPersona; idDispositivo };                                      // VincularOut
+
+// Inicio: GET /personas/{id}/inicio
+type Inicio = {                                                                       // InicioOut
+  persona: { id; nombre };
+  estado: 'bien' | 'atencion' | 'sin_conexion' | 'alerta';
+  idAlertaAbierta: number | null;
   ultimaCharla: string | null;
-  resumen: string | null;
-  charlas: number;
-  minutos: number;
-  recordatorios: { cumplidos: number; total: number };
-  proximo: { hora: string; titulo: string } | null;
-  alertaAbiertaId: number | null;
+  resumen: { fecha; texto; esDeHoy } | null;   // de 21 a 21: durante el día viene el de ayer
+  charlas; minutos;
+  recordatoriosCumplidos; recordatoriosTotal;
+  proximoRecordatorio: { id; hora; titulo } | null;
 };
 
-export type Mensaje = {
-  id: number;
-  direccion: 'de_familia' | 'a_familia';
-  de: string;
-  deFamiliarId: number | null;  // null = lo mandó la persona. El backend manda es_mio: pasar a esMio al conectar
-  para: string | null;          // null = toda la familia
-  texto: string | null;
-  audioUrl: string | null;
-  audioDuracionSeg: number | null;
-  estado: 'pendiente' | 'entregado' | 'leido';
-  leidoEn: string | null;
-  creadoEn: string;
+// Mensajes: GET /personas/{id}/mensajes (más nuevos primero, de a 50) y POST
+type Mensaje = {                                                                      // MensajeOut
+  id; direccion: 'de_familia' | 'a_familia'; de: string | null; para: string | null;
+  esMio: boolean; texto: string | null; audioUrl: string | null; audioDuracionSeg: number | null;
+  estado: 'pendiente' | 'entregado' | 'leido'; entregadoEn; leidoEn; creadoEn;
 };
 
-export type Recordatorio = {
-  id: number;
-  titulo: string;
-  descripcion: string | null;
-  hora: string;                  // "09:00", hora local de la persona
-  repeticion: 'una_vez' | 'diaria' | 'semanal';
-  diasSemana: Array<'lunes'|'martes'|'miercoles'|'jueves'|'viernes'|'sabado'|'domingo'> | null;
-  fechaUnica: string | null;     // "2026-10-23"
-  estadoHoy?: 'sono' | 'pendiente';
+// Recordatorios: GET /personas/{id}/recordatorios y POST
+type RecordatorioNuevo = { titulo; descripcion; hora; repeticion; diasSemana: DiaSemana[] | null; fechaUnica }; // RecordatorioIn
+type Recordatorio = {                                                                 // RecordatorioOut
+  id; titulo; descripcion; hora: string /* "09:00" */; repeticion: 'una_vez' | 'diaria' | 'semanal';
+  diasSemana: DiaSemana[] /* vacía si no es semanal */; fechaUnica: string | null;
+  creadoDesde: 'app' | 'eloy'; sincronizado: boolean;
+  estado: 'sono' | 'pendiente' | null;   // solo en `hoy`
+  proximaFecha: string | null;           // solo en `proximos`
 };
+type Recordatorios = { fecha; hoy: Recordatorio[]; proximos: Recordatorio[] };        // RecordatoriosOut
 
-export type Familiar = {
-  id: number;
-  nombre: string;
-  parentesco: string | null;
-  rol: 'administrador' | 'familiar';
-  prioridadAlerta: number | null;
-  tieneCuenta: boolean;
-};
+// Familia: GET /personas/{id}/familia
+type Familiar = { id; nombre; parentesco; rol: Rol; recibeAlertas; prioridadAlerta; telefono; tieneCuenta; soyYo }; // FamiliarOut
+type Dispositivo = { id; conectado; ultimaConexion; wifiSsid; volumen; versionSoftware; restaurando };              // DispositivoOut
+type Familia = { miRol: Rol; familiares: Familiar[]; dispositivos: Dispositivo[] };                                 // FamiliaOut
+type Invitacion = { link; codigo; expiraEn };                                         // InvitacionOut
+type PedidoAEloy = { detalle };                    // la respuesta 202 de volumen y restaurar
 
-export type Dispositivo = {
-  conectado: boolean;
-  ultimaConexion: string | null;
-  wifiSsid: string | null;
-  volumen: number;
-  versionSoftware: string | null;
-};
-
-// Ya alineado con AlertaOut de schemas.py (camelCase).
-export type Alerta = {
-  id: number;
-  idPersona: number;
-  persona: string;
-  telefonoPersona: string | null;
-  estado: 'abierta' | 'atendida' | 'cerrada';
-  origen: 'voz' | 'pulsera' | 'pantalla';
-  motivo: string | null;
-  audioUrl: string | null;
-  audioDuracionSeg: number | null;
-  ocurridaEn: string;
-  atendidaPor: string | null;
-  atendidaPorMi: boolean;
-  atendidaEn: string | null;
-  cerradaEn: string | null;
-  notaCierre: string | null;
-  tambienAvisamosA: Array<{ nombre: string; parentesco: string | null }>;
+// Alertas
+type Alerta = {                                                                       // AlertaOut
+  id; idPersona; persona; telefonoPersona; estado: 'abierta' | 'atendida' | 'cerrada';
+  origen; motivo; audioUrl; audioDuracionSeg; ocurridaEn; atendidaPor; atendidaPorMi;
+  atendidaEn; cerradaEn; notaCierre; tambienAvisamosA: Array<{ nombre; parentesco }>;
 };
 ```
 
 ### Ya resuelto en el backend
 
-Lo que la app simula en `src/api/cliente.ts` y el backend ya tiene; al conectar, seguir lo del backend:
+Lo que la app simula en `src/api/cliente.ts` igual que el backend; al conectar, seguir lo del backend:
 
-- **Mensajes:** `es_mio: bool` en `MensajeOut`, en vez de `deFamiliarId`.
-- **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas` (`mi_rol`, `id_mi_familiar`); la app ya arma `api.yo()` así.
+- **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas` (`mi_rol`, `id_mi_familiar`) y en `GET /personas/{id}/familia` (`mi_rol`, `soy_yo`).
 - **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expira_en }`. El código es largo y viaja dentro del link: la app comparte el link (y el código aparte, por si lo piden).
-- **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización. Solo administradores (los demás ven el volumen sin slider).
-- **Restaurar de fábrica:** `POST /dispositivos/{id}/restaurar` con `{"confirmacion": "RESTAURAR"}` (la app lo manda tras el segundo aviso); responde 202 y 409 si ya hay una en curso. `restaurando` en el dispositivo indica que está pendiente.
+- **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización (cada 30 s). Solo administradores (los demás ven el volumen sin slider). La app no lo da por hecho: muestra "Eloy lo cambia en la próxima sincronización" y recarga cada 15 s con la pantalla a la vista; a los 2 minutos deja de recargar y avisa que Eloy puede estar sin conexión.
+- **Restaurar de fábrica:** `POST /dispositivos/{id}/restaurar` con `{"confirmacion": "RESTAURAR"}` (la app lo manda tras el segundo aviso); responde 202 y 409 si ya hay una en curso. Mientras `restaurando` es verdadero, Familia lo dice en vez del botón; cuando Eloy sincroniza queda desvinculado (los familiares, mensajes y recordatorios siguen en el servidor).
 - **Vincular:** `POST /dispositivos/vincular` responde el mismo 404 para un código mal escrito o vencido (la app muestra un solo texto), 429 tras 5 intentos y 409 si ese Eloy ya está vinculado. Con `id_persona` hace falta ser administrador: en Familia, "Vincular a Eloy" solo lo ven ellos.
 - **Aceptar invitación:** `POST /invitaciones/aceptar` devuelve `PersonaResumenOut`; 404 si no existe, se usó o venció, y 409 si ya sos parte de la familia.
 - **Atender una alerta:** `POST /alertas/{id}/atender` responde **409** si otro familiar ya la tomó; el `detail` dice quién ("Vero ya se está ocupando").
@@ -188,6 +163,10 @@ Lo que la app simula en `src/api/cliente.ts` y el backend ya tiene; al conectar,
 ### Pendiente con Héctor
 
 - Que las respuestas salgan en **camelCase** (hoy salen en snake_case, como en `schemas.py`).
+
+### Pendiente en la app
+
+- **Mensajes trae de a 50:** falta cargar los anteriores al scrollear hacia arriba (`GET /personas/{id}/mensajes?antes_de={id del más viejo}`).
 
 ## Cómo trabajar
 

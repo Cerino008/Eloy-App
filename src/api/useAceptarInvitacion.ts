@@ -9,9 +9,6 @@ export function useAceptarInvitacion() {
 
   return useMutation({
     mutationFn: api.aceptarInvitacion,
-    onSuccess: () =>
-      Promise.all(
-        [consultas.personas, consultas.yo].map(({ queryKey }) => queryClient.invalidateQueries({ queryKey })),
-      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: consultas.personas.queryKey }),
   });
 }

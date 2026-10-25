@@ -5,7 +5,8 @@ import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { consultas } from '@/api/consultas';
-import type { Recordatorio } from '@/api/tipos';
+import type { Recordatorio, Recordatorios as Lista } from '@/api/tipos';
+import { usePersonaActual } from '@/api/usePersonaActual';
 import {
   Boton,
   Cargando,
@@ -16,23 +17,7 @@ import {
   Tarjeta,
   Texto,
 } from '@/componentes';
-import { proximaVez } from '@/recordatorios';
 import { espacio } from '@/tema';
-
-// "Hoy": los que suenan hoy (traen estadoHoy), por hora.
-// "Próximos días": el resto, por cuál suena primero; los que ya no van a sonar, al final.
-function separar(recordatorios: Recordatorio[]) {
-  const ahora = new Date();
-  const hoy = recordatorios
-    .filter((recordatorio) => recordatorio.estadoHoy !== undefined)
-    .sort((a, b) => a.hora.localeCompare(b.hora));
-  const proximos = recordatorios
-    .filter((recordatorio) => recordatorio.estadoHoy === undefined)
-    .map((recordatorio) => ({ recordatorio, cuando: proximaVez(recordatorio, ahora)?.getTime() ?? Infinity }))
-    .sort((a, b) => a.cuando - b.cuando)
-    .map(({ recordatorio }) => recordatorio);
-  return { hoy, proximos };
-}
 
 function Seccion({ titulo, recordatorios, vacio }: { titulo: string; recordatorios: Recordatorio[]; vacio: string }) {
   return (
@@ -60,8 +45,8 @@ function Seccion({ titulo, recordatorios, vacio }: { titulo: string; recordatori
 
 export default function Recordatorios() {
   const router = useRouter();
-  const recordatorios = useQuery(consultas.recordatorios);
-  const nombre = useQuery(consultas.hoy).data?.persona.nombre;
+  const persona = usePersonaActual();
+  const recordatorios = useQuery(consultas.recordatorios(persona.id));
 
   return (
     <Pantalla>
@@ -70,7 +55,7 @@ export default function Recordatorios() {
           <Texto variante="titulo" accessibilityRole="header">
             Recordatorios
           </Texto>
-          <Texto color="textoSecundario">Eloy se los dice{nombre ? ` a ${nombre}` : ''} en voz alta</Texto>
+          <Texto color="textoSecundario">Eloy se los dice a {persona.nombre} en voz alta</Texto>
         </View>
 
         {recordatorios.isPending ? (
@@ -83,7 +68,7 @@ export default function Recordatorios() {
           />
         ) : (
           <>
-            <Contenido recordatorios={recordatorios.data} />
+            <Contenido lista={recordatorios.data} />
             <Boton titulo="Agregar recordatorio" icono={Plus} onPress={() => router.push('/nuevo-recordatorio')} />
           </>
         )}
@@ -92,13 +77,12 @@ export default function Recordatorios() {
   );
 }
 
-function Contenido({ recordatorios }: { recordatorios: Recordatorio[] }) {
-  const { hoy, proximos } = separar(recordatorios);
-
+// El servidor ya los separa en "Hoy" (con sonó / pendiente) y "Próximos días", y los ordena.
+function Contenido({ lista }: { lista: Lista }) {
   return (
     <>
-      <Seccion titulo="Hoy" recordatorios={hoy} vacio="Hoy no hay recordatorios." />
-      <Seccion titulo="Próximos días" recordatorios={proximos} vacio="No hay otros recordatorios cargados." />
+      <Seccion titulo="Hoy" recordatorios={lista.hoy} vacio="Hoy no hay recordatorios." />
+      <Seccion titulo="Próximos días" recordatorios={lista.proximos} vacio="No hay otros recordatorios cargados." />
     </>
   );
 }

@@ -4,7 +4,8 @@ import { MessageSquare, Settings } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
 import { consultas } from '@/api/consultas';
-import type { EstadoPersona, Hoy } from '@/api/tipos';
+import type { EstadoPersona, Inicio as DatosInicio } from '@/api/tipos';
+import { usePersonaActual } from '@/api/usePersonaActual';
 import {
   Boton,
   BotonIcono,
@@ -34,8 +35,9 @@ function plural(cantidad: number, singular: string, plural: string) {
 
 export default function Inicio() {
   const router = useRouter();
-  const hoy = useQuery(consultas.hoy);
-  const yo = useQuery(consultas.yo);
+  const persona = usePersonaActual();
+  const inicio = useQuery(consultas.inicio(persona.id));
+  const usuario = useQuery(consultas.usuario);
 
   return (
     <Pantalla>
@@ -45,60 +47,65 @@ export default function Inicio() {
           <BotonIcono icono={Settings} etiqueta="Ajustes de la familia" onPress={() => router.navigate('/familia')} />
         </View>
 
-        {hoy.isPending ? (
+        {inicio.isPending ? (
           <Cargando />
-        ) : hoy.isError ? (
-          <ErrorAlCargar onReintentar={() => hoy.refetch()} reintentando={hoy.isFetching} />
+        ) : inicio.isError ? (
+          <ErrorAlCargar onReintentar={() => inicio.refetch()} reintentando={inicio.isFetching} />
         ) : (
-          <Resumen hoy={hoy.data} nombreUsuario={yo.data?.usuario.nombre} />
+          <Resumen inicio={inicio.data} nombreUsuario={usuario.data?.nombre} />
         )}
       </View>
     </Pantalla>
   );
 }
 
-function Resumen({ hoy, nombreUsuario }: { hoy: Hoy; nombreUsuario: string | undefined }) {
+function Resumen({ inicio, nombreUsuario }: { inicio: DatosInicio; nombreUsuario: string | undefined }) {
   const router = useRouter();
-  const nombre = hoy.persona.nombre;
-  const { cumplidos, total } = hoy.recordatorios;
+  const nombre = inicio.persona.nombre;
+  const cumplidos = inicio.recordatoriosCumplidos;
+  const total = inicio.recordatoriosTotal;
+  const alertaAbierta = inicio.idAlertaAbierta;
+  const proximo = inicio.proximoRecordatorio;
+  // Eloy escribe el resumen a las 21: durante el día viene el de ayer.
+  const deAyer = inicio.resumen !== null && !inicio.resumen.esDeHoy;
 
   return (
     <>
-      {hoy.alertaAbiertaId !== null && (
+      {alertaAbierta !== null && (
         <CartelAlerta
           titulo="Hay una alerta abierta"
           detalle="Tocá para ver qué pasó"
-          onPress={() => router.push(`/alerta/${hoy.alertaAbiertaId}`)}
+          onPress={() => router.push(`/alerta/${alertaAbierta}`)}
         />
       )}
 
       <View>
         <Texto color="textoSecundario">{nombreUsuario ? `Hola, ${nombreUsuario}` : 'Hola'}</Texto>
         <View style={estilos.estado}>
-          <PuntoEstado estado={hoy.estado} />
+          <PuntoEstado estado={inicio.estado} />
           <Texto variante="titulo" accessibilityRole="header" style={estilos.flex}>
-            {frasePorEstado[hoy.estado](nombre)}
+            {frasePorEstado[inicio.estado](nombre)}
           </Texto>
         </View>
         <Texto color="textoSecundario">
-          {hoy.ultimaCharla
-            ? `Última charla con Eloy: ${cuandoFue(hoy.ultimaCharla)}`
+          {inicio.ultimaCharla
+            ? `Última charla con Eloy: ${cuandoFue(inicio.ultimaCharla)}`
             : `${nombre} todavía no charló con Eloy`}
         </Texto>
       </View>
 
       <Tarjeta style={estilos.tarjetaResumen}>
-        <Texto variante="etiqueta">Resumen de hoy</Texto>
-        {hoy.resumen ? (
-          <Texto>{hoy.resumen}</Texto>
+        <Texto variante="etiqueta">{deAyer ? 'Resumen de ayer' : 'Resumen de hoy'}</Texto>
+        {inicio.resumen ? (
+          <Texto>{inicio.resumen.texto}</Texto>
         ) : (
           <Texto color="textoSecundario">Cuando {nombre} charle con Eloy, acá vas a ver un resumen del día.</Texto>
         )}
       </Tarjeta>
 
       <View style={estilos.datos}>
-        <Dato valor={hoy.charlas} etiqueta={plural(hoy.charlas, 'charla', 'charlas')} />
-        <Dato valor={hoy.minutos} etiqueta={plural(hoy.minutos, 'minuto', 'minutos')} />
+        <Dato valor={inicio.charlas} etiqueta={plural(inicio.charlas, 'charla', 'charlas')} />
+        <Dato valor={inicio.minutos} etiqueta={plural(inicio.minutos, 'minuto', 'minutos')} />
         <Dato
           valor={`${cumplidos}/${total}`}
           etiqueta={plural(total, 'recordatorio', 'recordatorios')}
@@ -107,12 +114,12 @@ function Resumen({ hoy, nombreUsuario }: { hoy: Hoy; nombreUsuario: string | und
       </View>
 
       <Tarjeta>
-        {hoy.proximo ? (
+        {proximo ? (
           <View style={estilos.proximo} accessible>
-            <Texto variante="hora">{hoy.proximo.hora}</Texto>
+            <Texto variante="hora">{proximo.hora}</Texto>
             <View style={estilos.flex}>
               <Texto variante="secundario">Próximo recordatorio</Texto>
-              <Texto variante="cuerpoFuerte">{hoy.proximo.titulo}</Texto>
+              <Texto variante="cuerpoFuerte">{proximo.titulo}</Texto>
             </View>
           </View>
         ) : (

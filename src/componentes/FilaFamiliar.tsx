@@ -7,22 +7,24 @@ import { Texto } from './Texto';
 
 type Props = {
   familiar: Familiar;
-  esYo: boolean;
 };
 
-// "Hija · Orden de aviso: 1", "Hijo · Administrador · Orden de aviso: 2".
+// En qué orden lo avisan si hay una alerta; si no recibe alertas, eso (aunque tenga un número).
+// Con espacios que no se cortan: la frase baja entera a la línea de abajo, nunca partida.
+function avisoDe(familiar: Familiar): string | null {
+  if (!familiar.recibeAlertas) return 'No recibe alertas';
+  return familiar.prioridadAlerta !== null ? `Orden de aviso: ${familiar.prioridadAlerta}` : null;
+}
+
+// "Hija · Orden de aviso: 1", "Hijo · Administrador · Orden de aviso: 2", "Nieto · No recibe alertas".
 function detalleDe(familiar: Familiar): string {
-  return [
-    familiar.parentesco,
-    familiar.rol === 'administrador' ? 'Administrador' : null,
-    // Con espacios que no se cortan: la frase baja entera a la línea de abajo, nunca partida.
-    familiar.prioridadAlerta !== null ? `Orden de aviso: ${familiar.prioridadAlerta}` : null,
-  ]
+  return [familiar.parentesco, familiar.rol === 'administrador' ? 'Administrador' : null, avisoDe(familiar)]
     .filter(Boolean)
     .join(' · ');
 }
 
-export function FilaFamiliar({ familiar, esYo }: Props) {
+export function FilaFamiliar({ familiar }: Props) {
+  const esYo = familiar.soyYo;
   const nombre = esYo ? `${familiar.nombre} (vos)` : familiar.nombre;
   const detalle = detalleDe(familiar);
   const sinCuenta = familiar.tieneCuenta ? null : 'Todavía no entró a la app';

@@ -14,8 +14,7 @@ type Props = {
 export function FilaRecordatorio({ recordatorio }: Props) {
   const cuando = cuandoSuena(recordatorio);
   const detalle = recordatorio.descripcion ? `${cuando} · ${recordatorio.descripcion}` : cuando;
-  const estado =
-    recordatorio.estadoHoy === 'sono' ? 'Sonó' : recordatorio.estadoHoy === 'pendiente' ? 'Pendiente' : null;
+  const estado = recordatorio.estado === 'sono' ? 'Sonó' : recordatorio.estado === 'pendiente' ? 'Pendiente' : null;
 
   return (
     <View
@@ -30,7 +29,7 @@ export function FilaRecordatorio({ recordatorio }: Props) {
         <Texto variante="cuerpoFuerte">{recordatorio.titulo}</Texto>
         <Texto variante="secundario">{detalle}</Texto>
       </View>
-      {estado && <Chip texto={estado} variante={recordatorio.estadoHoy === 'sono' ? 'exito' : 'neutro'} />}
+      {estado && <Chip texto={estado} variante={recordatorio.estado === 'sono' ? 'exito' : 'neutro'} />}
     </View>
   );
 }

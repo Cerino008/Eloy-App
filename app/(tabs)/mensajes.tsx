@@ -5,6 +5,7 @@ import { Alert, FlatList, StyleSheet, View, type FlatListInstance } from 'react-
 import { consultas } from '@/api/consultas';
 import type { Mensaje } from '@/api/tipos';
 import { useEnviarMensaje } from '@/api/useEnviarMensaje';
+import { usePersonaActual } from '@/api/usePersonaActual';
 import {
   Avatar,
   BurbujaMensaje,
@@ -20,16 +21,15 @@ import { colores, espacio, margenPantalla } from '@/tema';
 
 type Fila = { tipo: 'dia'; clave: string; texto: string } | { tipo: 'mensaje'; clave: string; mensaje: Mensaje };
 
-// La lista está invertida (el primer elemento queda abajo), así que va del más nuevo al más viejo
-// y cada separador de día va después de los mensajes de ese día.
+// La lista está invertida (el primer elemento queda abajo) y el servidor manda los más nuevos primero:
+// van en ese orden, y cada separador de día va después de los mensajes de ese día.
 function armarFilas(mensajes: Mensaje[]): Fila[] {
-  const nuevosPrimero = [...mensajes].reverse();
   const filas: Fila[] = [];
 
-  nuevosPrimero.forEach((mensaje, i) => {
+  mensajes.forEach((mensaje, i) => {
     filas.push({ tipo: 'mensaje', clave: `mensaje-${mensaje.id}`, mensaje });
     const dia = nombreDelDia(mensaje.creadoEn);
-    const anterior = nuevosPrimero[i + 1];
+    const anterior = mensajes[i + 1];
     if (!anterior || nombreDelDia(anterior.creadoEn) !== dia) {
       filas.push({ tipo: 'dia', clave: `dia-${dia}`, texto: dia });
     }
@@ -49,28 +49,28 @@ function estadoDeLectura(mensaje: Mensaje): string {
 }
 
 // Los míos no llevan nombre; los de otros familiares, sí. Los ya leídos van destacados.
-function pieDe(mensaje: Mensaje, yoId: number | undefined): { texto: string; destacado: boolean } {
+function pieDe(mensaje: Mensaje): { texto: string; destacado: boolean } {
   if (mensaje.direccion === 'a_familia') {
-    return { texto: `${mensaje.de}, por Eloy · ${hora(mensaje.creadoEn)}`, destacado: false };
+    const quien = mensaje.de ? `${mensaje.de}, por Eloy` : 'Por Eloy';
+    return { texto: `${quien} · ${hora(mensaje.creadoEn)}`, destacado: false };
   }
   const estado = estadoDeLectura(mensaje);
   return {
-    texto: mensaje.deFamiliarId === yoId ? estado : `${mensaje.de} · ${estado}`,
+    texto: mensaje.esMio || !mensaje.de ? estado : `${mensaje.de} · ${estado}`,
     destacado: mensaje.estado === 'leido',
   };
 }
 
 export default function Mensajes() {
-  const mensajes = useQuery(consultas.mensajes);
-  const yo = useQuery(consultas.yo);
-  const hoy = useQuery(consultas.hoy);
-  const nombre = hoy.data?.persona.nombre;
+  const persona = usePersonaActual();
+  const mensajes = useQuery(consultas.mensajes(persona.id));
+  const nombre = persona.nombre;
 
   const [texto, setTexto] = useState('');
   // Tipo de instancia, como pide la API estricta de React Native 0.88; solo se usa para scrollToOffset.
   const lista = useRef<FlatListInstance>(null);
 
-  const enviar = useEnviarMensaje((textoNoEnviado) => {
+  const enviar = useEnviarMensaje(persona.id, (textoNoEnviado) => {
     // Si ya empezó a escribir otra cosa, no se la pisamos.
     setTexto((actual) => (actual.trim() ? actual : textoNoEnviado));
     Alert.alert('No se pudo mandar el mensaje', 'Revisá que el teléfono tenga internet y probá de nuevo.');
@@ -95,17 +95,17 @@ export default function Mensajes() {
         </View>
       );
     }
-    const pie = pieDe(item.mensaje, yo.data?.persona.idMiFamiliar);
+    const pie = pieDe(item.mensaje);
     return <BurbujaMensaje mensaje={item.mensaje} pie={pie.texto} pieDestacado={pie.destacado} />;
   };
 
   return (
     <Pantalla scroll={false} relleno={false} evitarTeclado>
       <View style={estilos.encabezado}>
-        {nombre && <Avatar nombre={nombre} variante="persona" tamano={48} />}
+        <Avatar nombre={nombre} variante="persona" tamano={48} />
         <View style={estilos.flex}>
           <Texto variante="subtitulo" accessibilityRole="header">
-            {nombre ?? 'Mensajes'}
+            {nombre}
           </Texto>
           <Texto variante="secundario">Eloy le lee en voz alta lo que escribas</Texto>
         </View>
@@ -126,7 +126,7 @@ export default function Mensajes() {
           {filas.length === 0 ? (
             <View style={estilos.vacio}>
               <Texto color="textoSecundario" centrado>
-                Todavía no hay mensajes. Escribí algo y Eloy se lo lee{nombre ? ` a ${nombre}` : ''}.
+                Todavía no hay mensajes. Escribí algo y Eloy se lo lee a {nombre}.
               </Texto>
             </View>
           ) : (
@@ -145,7 +145,7 @@ export default function Mensajes() {
             valor={texto}
             onCambiar={setTexto}
             onEnviar={mandar}
-            placeholder={nombre ? `Escribile a ${nombre}…` : 'Escribí un mensaje…'}
+            placeholder={`Escribile a ${nombre}…`}
           />
         </>
       )}

@@ -6,32 +6,33 @@ import type { Mensaje } from './tipos';
 
 // Manda un mensaje y lo muestra al instante, sin esperar al servidor.
 // Si falla, la lista vuelve a como estaba y `alFallar` recibe el texto para no perderlo.
-export function useEnviarMensaje(alFallar: (texto: string) => void) {
+export function useEnviarMensaje(idPersona: number, alFallar: (texto: string) => void) {
   const queryClient = useQueryClient();
-  const clave = consultas.mensajes.queryKey;
+  const clave = consultas.mensajes(idPersona).queryKey;
 
   return useMutation({
-    mutationFn: api.enviarMensaje,
+    mutationFn: (texto: string) => api.enviarMensaje(idPersona, texto),
     onMutate: async (texto) => {
       // Que una carga en curso no pise el mensaje provisorio.
       await queryClient.cancelQueries({ queryKey: clave });
       const anteriores = queryClient.getQueryData(clave);
-      const yo = queryClient.getQueryData(consultas.yo.queryKey);
 
       const provisorio: Mensaje = {
         id: -Date.now(), // negativo: nunca choca con un id del servidor
         direccion: 'de_familia',
-        de: yo?.usuario.nombre ?? '',
-        deFamiliarId: yo?.persona.idMiFamiliar ?? null,
+        de: queryClient.getQueryData(consultas.usuario.queryKey)?.nombre ?? null,
         para: null,
+        esMio: true,
         texto,
         audioUrl: null,
         audioDuracionSeg: null,
         estado: 'pendiente',
+        entregadoEn: null,
         leidoEn: null,
         creadoEn: new Date().toISOString(),
       };
-      queryClient.setQueryData(clave, (lista = []) => [...lista, provisorio]);
+      // La lista va de los más nuevos a los más viejos, como la manda el servidor.
+      queryClient.setQueryData(clave, (lista = []) => [provisorio, ...lista]);
 
       return { anteriores };
     },
