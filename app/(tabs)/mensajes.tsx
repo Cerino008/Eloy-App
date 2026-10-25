@@ -95,7 +95,7 @@ export default function Mensajes() {
         </View>
       );
     }
-    const pie = pieDe(item.mensaje, yo.data?.id);
+    const pie = pieDe(item.mensaje, yo.data?.persona.idMiFamiliar);
     return <BurbujaMensaje mensaje={item.mensaje} pie={pie.texto} pieDestacado={pie.destacado} />;
   };
 

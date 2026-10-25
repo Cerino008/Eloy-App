@@ -1,24 +1,38 @@
-import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { CircleAlert } from 'lucide-react-native';
+import type { Ref } from 'react';
+import { StyleSheet, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
 
 import { colores, espacio, fuentes, radio, tipografia } from '@/tema';
 import { Texto } from './Texto';
 
 type Props = Omit<TextInputProps, 'style'> & {
   etiqueta: string;
+  // Lo que está mal en este campo: aparece debajo, en rojo, y el borde se pone rojo.
+  error?: string | null;
+  ref?: Ref<TextInputInstance>;
 };
 
 // Campo de formulario con la etiqueta arriba.
-export function CampoTexto({ etiqueta, multiline, ...resto }: Props) {
+export function CampoTexto({ etiqueta, multiline, error, ref, ...resto }: Props) {
   return (
     <View style={estilos.base}>
       <Texto variante="cuerpoFuerte">{etiqueta}</Texto>
       <TextInput
-        accessibilityLabel={etiqueta}
+        ref={ref}
+        accessibilityLabel={error ? `${etiqueta}. ${error}` : etiqueta}
         placeholderTextColor={colores.textoSecundario}
         multiline={multiline}
-        style={[estilos.campo, multiline && estilos.multilinea]}
+        style={[estilos.campo, multiline && estilos.multilinea, error && estilos.conError]}
         {...resto}
       />
+      {error && (
+        <View style={estilos.error} accessibilityLiveRegion="polite">
+          <CircleAlert size={16} color={colores.alerta} strokeWidth={2.4} />
+          <Texto variante="chica" color="alerta" style={estilos.textoError}>
+            {error}
+          </Texto>
+        </View>
+      )}
     </View>
   );
 }
@@ -41,4 +55,15 @@ const estilos = StyleSheet.create({
     minHeight: 88,
     textAlignVertical: 'top',
   },
+  // Más grueso, para que se note también sin distinguir el color.
+  conError: {
+    borderWidth: 2,
+    borderColor: colores.alerta,
+  },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacio[2],
+  },
+  textoError: { flexShrink: 1 },
 });

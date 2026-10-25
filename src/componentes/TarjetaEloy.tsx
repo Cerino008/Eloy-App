@@ -11,8 +11,8 @@ import { Texto } from './Texto';
 
 type Props = {
   dispositivo: Dispositivo;
-  // Se llama al soltar el slider, no en cada movimiento.
-  onCambiarVolumen: (volumen: number) => void;
+  // Se llama al soltar el slider, no en cada movimiento. Sin esta función el volumen se muestra sin slider.
+  onCambiarVolumen?: (volumen: number) => void;
 };
 
 function FilaDato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
@@ -52,27 +52,31 @@ export function TarjetaEloy({ dispositivo, onCambiarVolumen }: Props) {
 
       <FilaDato etiqueta="WiFi" valor={dispositivo.wifiSsid ?? 'Sin datos'} />
 
-      <View>
-        <View style={estilos.dato}>
-          <Texto color="textoSecundario">Volumen</Texto>
-          <Texto variante="cuerpoFuerte">{volumen} %</Texto>
+      {onCambiarVolumen ? (
+        <View>
+          <View style={estilos.dato}>
+            <Texto color="textoSecundario">Volumen</Texto>
+            <Texto variante="cuerpoFuerte">{volumen} %</Texto>
+          </View>
+          <Slider
+            value={dispositivo.volumen}
+            minimumValue={0}
+            maximumValue={100}
+            step={5}
+            onValueChange={setVolumen}
+            onSlidingComplete={onCambiarVolumen}
+            minimumTrackTintColor={colores.texto}
+            maximumTrackTintColor={colores.separador}
+            // En iOS queda el botón blanco del sistema; teñido se ve como una cápsula pesada.
+            thumbTintColor={Platform.OS === 'android' ? colores.texto : undefined}
+            accessibilityLabel="Volumen de Eloy"
+            accessibilityValue={{ text: `${volumen} %` }}
+            style={estilos.slider}
+          />
         </View>
-        <Slider
-          value={dispositivo.volumen}
-          minimumValue={0}
-          maximumValue={100}
-          step={5}
-          onValueChange={setVolumen}
-          onSlidingComplete={onCambiarVolumen}
-          minimumTrackTintColor={colores.texto}
-          maximumTrackTintColor={colores.separador}
-          // En iOS queda el botón blanco del sistema; teñido se ve como una cápsula pesada.
-          thumbTintColor={Platform.OS === 'android' ? colores.texto : undefined}
-          accessibilityLabel="Volumen de Eloy"
-          accessibilityValue={{ text: `${volumen} %` }}
-          style={estilos.slider}
-        />
-      </View>
+      ) : (
+        <FilaDato etiqueta="Volumen" valor={`${dispositivo.volumen} %`} />
+      )}
 
       <FilaDato etiqueta="Versión" valor={dispositivo.versionSoftware ?? 'Sin datos'} />
     </Tarjeta>

@@ -12,8 +12,13 @@ import type {
   Hoy,
   Invitacion,
   Mensaje,
+  PersonaResumen,
   Recordatorio,
   RecordatorioNuevo,
+  RegistroNuevo,
+  Tokens,
+  Usuario,
+  Yo,
 } from './tipos';
 
 const DEMORA_MS = 700;
@@ -40,6 +45,9 @@ const recordatorios: Recordatorio[] = [...ejemplo.recordatorios];
 const familiares: Familiar[] = [...ejemplo.familiares];
 let dispositivo: Dispositivo | null = ejemplo.escenario.sinDispositivo ? null : { ...ejemplo.dispositivo };
 let alerta: Alerta | null = ejemplo.escenario.alertaAbierta ? { ...ejemplo.alerta } : null;
+let usuario: Usuario = { ...ejemplo.usuario };
+// Una cuenta recién creada todavía no sigue a nadie, como en el backend.
+let cuentaNueva = false;
 
 function buscarAlerta(id: number): Alerta {
   if (!alerta || alerta.id !== id) throw new ErrorApi(404, 'Alerta no encontrada');
@@ -59,16 +67,60 @@ function recordatoriosDeHoy(ahora: Date): Recordatorio[] {
     .sort((a, b) => a.hora.localeCompare(b.hora));
 }
 
-// Sin 0/O ni 1/I, para que no se confundan al dictarlo.
-const LETRAS_CODIGO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const LETRAS_TOKEN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
-function codigoNuevo(): string {
-  return Array.from({ length: 6 }, () => LETRAS_CODIGO[Math.floor(Math.random() * LETRAS_CODIGO.length)]).join('');
+// Como token_aleatorio() del backend: texto al azar que sirve en un link.
+function tokenAlAzar(largo: number): string {
+  return Array.from({ length: largo }, () => LETRAS_TOKEN[Math.floor(Math.random() * LETRAS_TOKEN.length)]).join('');
 }
 
+// Como el backend: el access dura 15 minutos y el refresh, 30 días.
+function tokensNuevos(): Tokens {
+  return { accessToken: tokenAlAzar(40), refreshToken: tokenAlAzar(43), tokenType: 'bearer', expiraEnSeg: 15 * 60 };
+}
+
+const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const api = {
-  // Quién usa la app. En el backend: GET /auth/yo, y el rol sale de GET /personas/{id}/familia.
-  yo: (): Promise<Familiar> => simularServidor(() => ejemplo.yo),
+  // POST /auth/login. Cualquier email entra con una contraseña de 8 o más; el de prueba da 401.
+  login: (email: string, password: string): Promise<Tokens> =>
+    simularServidor(() => {
+      const limpio = email.trim().toLowerCase();
+      if (limpio === ejemplo.emailsDePrueba.incorrecto || password.length < 8) {
+        throw new ErrorApi(401, 'Email o contraseña incorrectos');
+      }
+      usuario = { ...ejemplo.usuario, email: limpio };
+      cuentaNueva = false;
+      return tokensNuevos();
+    }),
+
+  // POST /auth/registro: crea la cuenta y ya deja la sesión abierta.
+  registro: (datos: RegistroNuevo): Promise<Tokens> =>
+    simularServidor(() => {
+      const email = datos.email.trim().toLowerCase();
+      if (email === ejemplo.emailsDePrueba.registrado) throw new ErrorApi(409, 'Ya hay una cuenta con ese email');
+      usuario = { id: usuario.id + 100, nombre: datos.nombre.trim(), apellido: null, email, telefono: null };
+      cuentaNueva = true;
+      return tokensNuevos();
+    }),
+
+  // POST /auth/logout: el backend da de baja esta sesión.
+  logout: (): Promise<void> => simularServidor(() => undefined),
+
+  // GET /auth/yo
+  usuario: (): Promise<Usuario> => simularServidor(() => usuario),
+
+  // GET /personas: a quién sigo y con qué rol.
+  personas: (): Promise<PersonaResumen[]> =>
+    simularServidor(() => (cuentaNueva || ejemplo.escenario.sinPersonas ? [] : ejemplo.personas)),
+
+  // La cuenta más su lugar en la familia. Por ahora la persona actual es la primera de la lista.
+  yo: async (): Promise<Yo> => {
+    const [cuenta, personas] = await Promise.all([api.usuario(), api.personas()]);
+    const persona = personas[0];
+    if (!persona) throw new ErrorApi(404, 'Todavía no seguís a ninguna persona');
+    return { usuario: cuenta, persona };
+  },
 
   hoy: (): Promise<Hoy> =>
     simularServidor(() => {
@@ -98,8 +150,8 @@ export const api = {
       const nuevo: Mensaje = {
         id: Math.max(0, ...mensajes.map((m) => m.id)) + 1,
         direccion: 'de_familia',
-        de: ejemplo.yo.nombre,
-        deFamiliarId: ejemplo.yo.id,
+        de: ejemplo.miFamiliar.nombre,
+        deFamiliarId: ejemplo.miFamiliar.id,
         para: null,
         texto,
         audioUrl: null,
@@ -141,8 +193,16 @@ export const api = {
       return dispositivo;
     }),
 
-  // En el backend: POST /personas/{id}/invitaciones devuelve { link, codigo, expira_en }.
-  invitarFamiliar: (): Promise<Invitacion> => simularServidor(() => ({ codigo: codigoNuevo() })),
+  // POST /personas/{id}/invitaciones (solo administradores). Vence a los 7 días.
+  invitarFamiliar: (): Promise<Invitacion> =>
+    simularServidor(() => {
+      const codigo = tokenAlAzar(32);
+      return {
+        link: `https://eloy.app/invitacion?codigo=${codigo}`,
+        codigo,
+        expiraEn: new Date(Date.now() + SIETE_DIAS_MS).toISOString(),
+      };
+    }),
 
   alerta: (id: number): Promise<Alerta> => simularServidor(() => buscarAlerta(id)),
 
@@ -161,7 +221,7 @@ export const api = {
       alerta = {
         ...actual,
         estado: 'atendida',
-        atendidaPor: ejemplo.yo.nombre,
+        atendidaPor: ejemplo.miFamiliar.nombre,
         atendidaPorMi: true,
         atendidaEn: new Date().toISOString(),
       };
@@ -174,6 +234,6 @@ export const api = {
       dispositivo = null;
       mensajes.length = 0;
       recordatorios.length = 0;
-      familiares.splice(0, familiares.length, ejemplo.yo);
+      familiares.splice(0, familiares.length, ejemplo.miFamiliar);
     }),
 };

@@ -1,11 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { Alert, Share, StyleSheet, View } from 'react-native';
 
 import { api } from '@/api/cliente';
 import { consultas } from '@/api/consultas';
-import type { Dispositivo, Familiar } from '@/api/tipos';
+import type { Dispositivo, Familiar, Yo } from '@/api/tipos';
 import { useCambiarVolumen } from '@/api/useCambiarVolumen';
 import { useRestaurarFabrica } from '@/api/useRestaurarFabrica';
 import {
@@ -19,6 +19,7 @@ import {
   TarjetaEloy,
   Texto,
 } from '@/componentes';
+import { useSesion } from '@/sesion';
 import { espacio } from '@/tema';
 
 const AVISO_SIN_INTERNET = 'Revisá que el teléfono tenga internet y probá de nuevo.';
@@ -56,6 +57,8 @@ export default function Familia() {
         ) : (
           <Contenido familiares={familiares.data} yo={yo.data} dispositivo={dispositivo.data} />
         )}
+
+        <CerrarSesion />
       </View>
     </Pantalla>
   );
@@ -67,20 +70,22 @@ function Contenido({
   dispositivo,
 }: {
   familiares: Familiar[];
-  yo: Familiar;
+  yo: Yo;
   dispositivo: Dispositivo | null;
 }) {
   const nombre = useQuery(consultas.hoy).data?.persona.nombre;
-  const esAdministrador = yo.rol === 'administrador';
+  const miId = yo.persona.idMiFamiliar;
+  const esAdministrador = yo.persona.miRol === 'administrador';
   const administrador = familiares.find((familiar) => familiar.rol === 'administrador');
 
   const invitar = useMutation({
     mutationFn: api.invitarFamiliar,
-    onSuccess: ({ codigo }) =>
+    // El código ya viaja en el link; va también aparte por si la app se lo pide.
+    onSuccess: ({ link, codigo }) =>
       Share.share({
         message:
           `Te invito a la app de Eloy${nombre ? ` para estar cerca de ${nombre}` : ''}. ` +
-          `Bajala y entrá con este código: ${codigo}`,
+          `Entrá desde este link: ${link}\n\nSi te pide un código: ${codigo}`,
       }),
     onError: () => Alert.alert('No pudimos crear la invitación', AVISO_SIN_INTERNET),
   });
@@ -89,10 +94,10 @@ function Contenido({
     <>
       <View style={estilos.seccion}>
         <Tarjeta lista>
-          {ordenar(familiares, yo.id).map((familiar, i) => (
+          {ordenar(familiares, miId).map((familiar, i) => (
             <Fragment key={familiar.id}>
               {i > 0 && <Separador />}
-              <FilaFamiliar familiar={familiar} esYo={familiar.id === yo.id} />
+              <FilaFamiliar familiar={familiar} esYo={familiar.id === miId} />
             </Fragment>
           ))}
         </Tarjeta>
@@ -162,7 +167,11 @@ function SeccionEloy({
 
       {dispositivo ? (
         <>
-          <TarjetaEloy dispositivo={dispositivo} onCambiarVolumen={(volumen) => cambiarVolumen.mutate(volumen)} />
+          {/* El volumen solo lo cambia un administrador; los demás lo ven sin slider. */}
+          <TarjetaEloy
+            dispositivo={dispositivo}
+            onCambiarVolumen={esAdministrador ? (volumen) => cambiarVolumen.mutate(volumen) : undefined}
+          />
           {esAdministrador && (
             <View style={estilos.restaurar}>
               <Boton
@@ -187,6 +196,19 @@ function SeccionEloy({
       )}
     </View>
   );
+}
+
+function CerrarSesion() {
+  const { salir } = useSesion();
+  const [saliendo, setSaliendo] = useState(false);
+
+  // Al cerrar la sesión, la navegación vuelve sola al login.
+  const cerrar = () => {
+    setSaliendo(true);
+    salir();
+  };
+
+  return <Boton titulo="Cerrar sesión" variante="contorno" onPress={cerrar} cargando={saliendo} />;
 }
 
 const estilos = StyleSheet.create({

@@ -28,9 +28,14 @@ app/
   alerta/[id].tsx          pantalla completa, encima de las pestañas
   vincular.tsx
   nuevo-recordatorio.tsx   modal
-  login.tsx
+  login.tsx                sin sesión
+  registro.tsx             sin sesión
+  bienvenida.tsx           con sesión pero sin personas: "Vincular a Eloy" / "Tengo una invitación"
+  invitacion.tsx
 src/
   tema.ts                  colores, tipografía, espacios (única fuente de estilos)
+  sesion.tsx               tokens en expo-secure-store, SesionProvider y useSesion()
+  validaciones.ts          avisos de los formularios (email, contraseña…)
   componentes/             Tarjeta, Boton, Avatar, BurbujaMensaje, FilaRecordatorio, PuntoEstado...
   api/tipos.ts             contrato con el backend
   api/ejemplo.ts           datos de ejemplo (Marta, Vero, Juan)
@@ -39,6 +44,17 @@ backend/                   API de Héctor (no tocar). Contrato: app/schemas.py y
 ```
 
 Regla: las pantallas **no** leen `ejemplo.ts` directo, siempre usan `cliente.ts`. Cuando el backend esté listo solo cambia `cliente.ts`.
+
+### Flujo de entrada
+
+`app/_layout.tsx` decide qué se puede abrir con `Stack.Protected` (cada grupo con `redirectTo`; sin eso Expo Router elige la primera ruta libre en su propio orden):
+
+- Cargando la sesión (o las personas): `Cargando`.
+- Sin sesión: `login` y `registro`.
+- Con sesión y sin personas (ej. cuenta recién creada): `bienvenida` e `invitacion`.
+- Con sesión y personas: las pestañas, `alerta/[id]` y `nuevo-recordatorio`. `vincular`, con cualquier sesión.
+
+La renovación del token (`POST /auth/refresh`, con rotación) va en `tokenDeAcceso()` de `src/sesion.tsx`, al conectar el backend.
 
 ## Diseño
 
@@ -51,7 +67,7 @@ Referencias en `docs/diseno/` (1-inicio.png … 6-familia.png). Respetarlas.
 | Texto secundario | `#4E5F6C` |
 | Acción principal | naranja ámbar `#F28C28` con texto `#1F3A4D` (un solo botón naranja por pantalla) |
 | Estado bien / acento | teal `#3E9A8A` (fondos suaves `#E3F1EE`) |
-| Alerta | rojo `#B3302F`, solo para emergencias |
+| Alerta | rojo `#B3302F`: para emergencias y para errores de formulario (texto chico con ícono y borde del campo). Nunca como fondo ni botón fuera de Alerta |
 | Tarjetas | blancas, esquinas 16, sin sombras fuertes |
 | Tipografía | Plus Jakarta Sans (`@expo-google-fonts/plus-jakarta-sans`): títulos 28 bold, cuerpo 17, nunca menos de 13 |
 | Toque | áreas táctiles de 44 px como mínimo |
@@ -72,6 +88,8 @@ Accesibilidad: `accessibilityLabel` en botones que son solo ícono; contraste su
 El contrato real es el del backend: **`backend/app/schemas.py`** (qué entra y sale de cada endpoint) y **`backend/README.md`** (rutas, códigos de respuesta y notas para la app). Base de datos documentada en `docs/Eloy_Diagnostico_y_Base_de_Datos_v2.pdf`. Fechas de la API siempre en **UTC ISO 8601**; la app las muestra en hora local.
 
 **Pantallas nuevas:** los tipos de `src/api/tipos.ts` siguen los nombres de `schemas.py` pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`, `atendida_por_mi` → `atendidaPorMi`).
+
+Ya alineados con `schemas.py` (camelCase): `Tokens`, `Usuario`, `PersonaResumen`, `Invitacion` y `Alerta`. `Yo` = `{ usuario, persona }`: el usuario de `GET /auth/yo` más la persona actual de `GET /personas` (por ahora, la primera).
 
 Tipos que la app usa hoy (borrador anterior al backend; se alinean con `schemas.py` al conectar cada pantalla):
 
@@ -158,9 +176,9 @@ export type Alerta = {
 Lo que la app simula en `src/api/cliente.ts` y el backend ya tiene; al conectar, seguir lo del backend:
 
 - **Mensajes:** `es_mio: bool` en `MensajeOut`, en vez de `deFamiliarId`.
-- **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas/{id}/familia` (`mi_rol`, `soy_yo`).
-- **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expira_en }`. El código es largo y viaja dentro del link: se comparte el link (hoy la app simula un código de 6).
-- **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización. Solo administradores.
+- **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas` (`mi_rol`, `id_mi_familiar`); la app ya arma `api.yo()` así.
+- **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expira_en }`. El código es largo y viaja dentro del link: la app comparte el link (y el código aparte, por si lo piden).
+- **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización. Solo administradores (los demás ven el volumen sin slider).
 - **Restaurar de fábrica:** `POST /dispositivos/{id}/restaurar` con `{"confirmacion": "RESTAURAR"}` (la app lo manda tras el segundo aviso); responde 202 y 409 si ya hay una en curso. `restaurando` en el dispositivo indica que está pendiente.
 - **Atender una alerta:** `POST /alertas/{id}/atender` responde **409** si otro familiar ya la tomó; el `detail` dice quién ("Vero ya se está ocupando").
 

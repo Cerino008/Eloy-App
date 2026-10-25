@@ -1,7 +1,17 @@
 // Datos de ejemplo mientras no hay backend. Solo los lee cliente.ts, nunca las pantallas.
 import { aFechaTexto } from '@/fechas';
 
-import type { Alerta, Dispositivo, EstadoPersona, Familiar, Hoy, Mensaje, Recordatorio } from './tipos';
+import type {
+  Alerta,
+  Dispositivo,
+  EstadoPersona,
+  Familiar,
+  Hoy,
+  Mensaje,
+  PersonaResumen,
+  Recordatorio,
+  Usuario,
+} from './tipos';
 
 // Para probar otros casos en el teléfono: cambiá estos valores y guardá.
 export const escenario = {
@@ -10,6 +20,13 @@ export const escenario = {
   fallar: false, // las llamadas a la API fallan, para ver el estado de error
   sinDispositivo: false, // todavía no hay un Eloy vinculado
   atendidaPorOtro: false, // "Ya me ocupo yo" falla como el 409 del backend: Vero ya la tomó
+  sinPersonas: false, // la cuenta todavía no sigue a nadie: después de entrar se ve la bienvenida
+};
+
+// Emails que fallan a propósito, para ver los errores del login y del registro.
+export const emailsDePrueba = {
+  incorrecto: 'incorrecto@ejemplo.com', // el login responde 401
+  registrado: 'registrado@ejemplo.com', // el registro responde 409: ya hay una cuenta
 };
 
 // Hace tantos días, a esa hora del teléfono, en UTC como lo manda la API.
@@ -20,7 +37,17 @@ function haceDias(dias: number, horas: number, minutos: number): string {
   return fecha.toISOString();
 }
 
-export const yo: Familiar = {
+// La cuenta con la que se entra (GET /auth/yo).
+export const usuario: Usuario = {
+  id: 1,
+  nombre: 'Bautista',
+  apellido: null,
+  email: 'bautista@ejemplo.com',
+  telefono: null,
+};
+
+// Bautista en la familia de Marta.
+export const miFamiliar: Familiar = {
   id: 1,
   nombre: 'Bautista',
   parentesco: 'Hijo',
@@ -33,7 +60,7 @@ const VERO_ID = 2;
 const JUAN_ID = 3;
 
 export const familiares: Familiar[] = [
-  yo,
+  miFamiliar,
   {
     id: VERO_ID,
     nombre: 'Vero',
@@ -59,6 +86,11 @@ export const dispositivo: Dispositivo = {
   volumen: 70,
   versionSoftware: '1.2.0',
 };
+
+// A quién sigue la cuenta (GET /personas). La app usa la primera.
+export const personas: PersonaResumen[] = [
+  { id: 1, nombre: 'Marta', miRol: miFamiliar.rol, idMiFamiliar: miFamiliar.id },
+];
 
 // Los recordatorios de hoy, el próximo y la alerta abierta los calcula cliente.ts.
 export const hoy: Omit<Hoy, 'recordatorios' | 'proximo' | 'alertaAbiertaId'> = {
@@ -210,7 +242,7 @@ export const mensajes: Mensaje[] = [
     id: 5,
     direccion: 'de_familia',
     de: 'Bautista',
-    deFamiliarId: yo.id,
+    deFamiliarId: miFamiliar.id,
     para: null,
     texto: '¡Dale, mamá! Le aviso. Yo llevo las empanadas.',
     audioUrl: null,
@@ -223,7 +255,7 @@ export const mensajes: Mensaje[] = [
     id: 6,
     direccion: 'de_familia',
     de: 'Bautista',
-    deFamiliarId: yo.id,
+    deFamiliarId: miFamiliar.id,
     para: null,
     texto: '¿Te acordaste de la pastilla del mediodía?',
     audioUrl: null,

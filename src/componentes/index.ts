@@ -1,6 +1,7 @@
 export { Avatar } from './Avatar';
 export { Boton } from './Boton';
 export { BotonIcono } from './BotonIcono';
+export { BotonTexto } from './BotonTexto';
 export { BotonVolver } from './BotonVolver';
 export { BurbujaMensaje } from './BurbujaMensaje';
 export { CampoMensaje } from './CampoMensaje';

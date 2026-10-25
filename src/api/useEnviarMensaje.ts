@@ -21,8 +21,8 @@ export function useEnviarMensaje(alFallar: (texto: string) => void) {
       const provisorio: Mensaje = {
         id: -Date.now(), // negativo: nunca choca con un id del servidor
         direccion: 'de_familia',
-        de: yo?.nombre ?? '',
-        deFamiliarId: yo?.id ?? null,
+        de: yo?.usuario.nombre ?? '',
+        deFamiliarId: yo?.persona.idMiFamiliar ?? null,
         para: null,
         texto,
         audioUrl: null,

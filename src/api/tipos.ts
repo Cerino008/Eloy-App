@@ -1,6 +1,46 @@
 // Contrato con el backend (borrador; ajustar con Héctor).
 // Fechas siempre en UTC ISO 8601; la app las muestra en hora local.
 
+// ---- Cuenta (TokensOut, UsuarioOut, PersonaResumenOut y RegistroIn de schemas.py, en camelCase)
+
+export type Tokens = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiraEnSeg: number;
+};
+
+export type Usuario = {
+  id: number;
+  nombre: string;
+  apellido: string | null;
+  email: string;
+  telefono: string | null;
+};
+
+// Una persona que sigo (GET /personas) y mi lugar en su familia.
+export type PersonaResumen = {
+  id: number;
+  nombre: string;
+  miRol: 'administrador' | 'familiar';
+  idMiFamiliar: number;
+};
+
+// Lo que manda la app al crear la cuenta (RegistroIn también acepta apellido y teléfono).
+export type RegistroNuevo = {
+  nombre: string;
+  email: string;
+  password: string;
+};
+
+// Quién usa la app: la cuenta y su lugar en la familia de la persona actual.
+export type Yo = {
+  usuario: Usuario;
+  persona: PersonaResumen;
+};
+
+// ---- Pantallas
+
 export type EstadoPersona = 'bien' | 'atencion' | 'sin_conexion' | 'alerta';
 
 export type Hoy = {
@@ -61,9 +101,11 @@ export type Familiar = {
   tieneCuenta: boolean;
 };
 
-// Código para que un familiar nuevo entre a la app. Pendiente con Héctor.
+// InvitacionOut: se comparte el link; el código viaja adentro (y se muestra por si lo piden aparte).
 export type Invitacion = {
+  link: string;
   codigo: string;
+  expiraEn: string;
 };
 
 export type Dispositivo = {

@@ -30,7 +30,8 @@
           "backgroundColor": "#F4F1EA"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
     ],
     "scheme": "eloy",
     "backgroundColor": "#F4F1EA",

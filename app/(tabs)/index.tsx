@@ -50,7 +50,7 @@ export default function Inicio() {
         ) : hoy.isError ? (
           <ErrorAlCargar onReintentar={() => hoy.refetch()} reintentando={hoy.isFetching} />
         ) : (
-          <Resumen hoy={hoy.data} nombreUsuario={yo.data?.nombre} />
+          <Resumen hoy={hoy.data} nombreUsuario={yo.data?.usuario.nombre} />
         )}
       </View>
     </Pantalla>
