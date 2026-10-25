@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 
 import { colores, espacio, margenPantalla, type Color } from '@/tema';
@@ -13,6 +13,9 @@ type Props = {
   bordes?: Edge[];
   // false para pantallas que van de borde a borde, como el chat.
   relleno?: boolean;
+  // Solo con scroll={false} (ej. el chat): el contenido se achica para que el teclado no tape lo de abajo.
+  // Con scroll no hace falta: el ScrollView ya deja lugar para el teclado.
+  evitarTeclado?: boolean;
 };
 
 export function Pantalla({
@@ -21,6 +24,7 @@ export function Pantalla({
   fondo = 'fondo',
   bordes = ['top', 'left', 'right'],
   relleno = true,
+  evitarTeclado = false,
 }: Props) {
   // Márgenes del reloj y la barra de inicio. No se usa SafeAreaView: en un modal a pantalla
   // completa (Alerta) daba 0 arriba y el encabezado quedaba debajo del reloj.
@@ -46,6 +50,18 @@ export function Pantalla({
         >
           {children}
         </ScrollView>
+      ) : evitarTeclado ? (
+        // KeyboardAvoidingView compara su posición dentro del padre (onLayout) con la del teclado en la
+        // pantalla. Tiene que ser hijo directo de esta View: así su `y` ya incluye el margen de arriba y la
+        // cuenta da justo. Metido en otra View que arranca después del margen, se quedaba corto en
+        // insets.top y el teclado tapaba el campo. Supone que la pantalla empieza arriba de todo
+        // (pestañas, pantalla completa); en una hoja de modal, usar scroll.
+        <KeyboardAvoidingView
+          style={[estilos.base, contenido]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {children}
+        </KeyboardAvoidingView>
       ) : (
         <View style={[estilos.base, contenido]}>{children}</View>
       )}

@@ -1,14 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  View,
-  type FlatListInstance,
-} from 'react-native';
+import { Alert, FlatList, StyleSheet, View, type FlatListInstance } from 'react-native';
 
 import { consultas } from '@/api/consultas';
 import type { Mensaje } from '@/api/tipos';
@@ -108,57 +100,55 @@ export default function Mensajes() {
   };
 
   return (
-    <Pantalla scroll={false} relleno={false}>
-      <KeyboardAvoidingView style={estilos.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={estilos.encabezado}>
-          {nombre && <Avatar nombre={nombre} variante="persona" tamano={48} />}
-          <View style={estilos.flex}>
-            <Texto variante="subtitulo" accessibilityRole="header">
-              {nombre ?? 'Mensajes'}
-            </Texto>
-            <Texto variante="secundario">Eloy le lee en voz alta lo que escribas</Texto>
-          </View>
+    <Pantalla scroll={false} relleno={false} evitarTeclado>
+      <View style={estilos.encabezado}>
+        {nombre && <Avatar nombre={nombre} variante="persona" tamano={48} />}
+        <View style={estilos.flex}>
+          <Texto variante="subtitulo" accessibilityRole="header">
+            {nombre ?? 'Mensajes'}
+          </Texto>
+          <Texto variante="secundario">Eloy le lee en voz alta lo que escribas</Texto>
         </View>
+      </View>
 
-        {mensajes.isPending ? (
-          <Cargando />
-        ) : mensajes.isError ? (
-          <View style={estilos.error}>
-            <ErrorAlCargar
-              titulo="No pudimos traer los mensajes"
-              onReintentar={() => mensajes.refetch()}
-              reintentando={mensajes.isFetching}
+      {mensajes.isPending ? (
+        <Cargando />
+      ) : mensajes.isError ? (
+        <View style={estilos.error}>
+          <ErrorAlCargar
+            titulo="No pudimos traer los mensajes"
+            onReintentar={() => mensajes.refetch()}
+            reintentando={mensajes.isFetching}
+          />
+        </View>
+      ) : (
+        <>
+          {filas.length === 0 ? (
+            <View style={estilos.vacio}>
+              <Texto color="textoSecundario" centrado>
+                Todavía no hay mensajes. Escribí algo y Eloy se lo lee{nombre ? ` a ${nombre}` : ''}.
+              </Texto>
+            </View>
+          ) : (
+            <FlatList
+              ref={lista}
+              inverted
+              data={filas}
+              keyExtractor={(fila) => fila.clave}
+              renderItem={renderFila}
+              contentContainerStyle={estilos.lista}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
             />
-          </View>
-        ) : (
-          <>
-            {filas.length === 0 ? (
-              <View style={estilos.vacio}>
-                <Texto color="textoSecundario" centrado>
-                  Todavía no hay mensajes. Escribí algo y Eloy se lo lee{nombre ? ` a ${nombre}` : ''}.
-                </Texto>
-              </View>
-            ) : (
-              <FlatList
-                ref={lista}
-                inverted
-                data={filas}
-                keyExtractor={(fila) => fila.clave}
-                renderItem={renderFila}
-                contentContainerStyle={estilos.lista}
-                keyboardDismissMode="interactive"
-                keyboardShouldPersistTaps="handled"
-              />
-            )}
-            <CampoMensaje
-              valor={texto}
-              onCambiar={setTexto}
-              onEnviar={mandar}
-              placeholder={nombre ? `Escribile a ${nombre}…` : 'Escribí un mensaje…'}
-            />
-          </>
-        )}
-      </KeyboardAvoidingView>
+          )}
+          <CampoMensaje
+            valor={texto}
+            onCambiar={setTexto}
+            onEnviar={mandar}
+            placeholder={nombre ? `Escribile a ${nombre}…` : 'Escribí un mensaje…'}
+          />
+        </>
+      )}
     </Pantalla>
   );
 }
