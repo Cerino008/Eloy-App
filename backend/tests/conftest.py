@@ -22,7 +22,9 @@ from sqlalchemy.engine import make_url  # noqa: E402
 from app import tiempo  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.db import engine  # noqa: E402
-from app.seguridad import limitador_dispositivo, limitador_login, limitador_vincular  # noqa: E402
+from app.seguridad import (  # noqa: E402
+    limitador_dispositivo, limitador_invitacion, limitador_login, limitador_vincular,
+)
 from app.servicios.alertas import _ultimo_intento  # noqa: E402
 from app.servicios.push import emisor  # noqa: E402
 from scripts.init_db import crear  # noqa: E402
@@ -50,6 +52,7 @@ def limpiar():
         con.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
     limitador_login._intentos.clear()
     limitador_vincular._intentos.clear()
+    limitador_invitacion._intentos.clear()
     limitador_dispositivo._intentos.clear()
     _ultimo_intento.clear()
     emisor().enviados.clear()
@@ -102,7 +105,7 @@ def nuevo_eloy(cliente, uid="eloy-b8:27:eb:00:00:01"):
     assert r.status_code == 201, r.text
     r = cliente.post("/dispositivo/token", json={"uid_serie": uid, "secret": secret})
     assert r.status_code == 200, r.text
-    return r.json()["access_token"]
+    return r.json()["access_token"]  # la Raspberry sigue en snake_case
 
 
 @pytest.fixture
@@ -115,9 +118,9 @@ def familia(cliente):
 
     codigo = cliente.post("/dispositivo/codigo", headers=auth(pi)).json()["codigo"]
     r = cliente.post("/dispositivos/vincular", json={"codigo": codigo, "nombre_persona": "Marta"},
-                     headers=auth(bauti["access_token"]))
+                     headers=auth(bauti["accessToken"]))
     assert r.status_code == 201, r.text
-    id_persona, id_disp = r.json()["id_persona"], r.json()["id_dispositivo"]
+    id_persona, id_disp = r.json()["idPersona"], r.json()["idDispositivo"]
 
     primer_sync = {
         "estado": {"volumen": 70, "wifi_ssid": "Casa de Marta", "version_software": "1.4"},
@@ -137,15 +140,15 @@ def familia(cliente):
              for f in resp["familiares"]]
     cliente.post("/dispositivo/sync", json={"confirmaciones": confs}, headers=auth(pi))
 
-    fam = cliente.get(f"/personas/{id_persona}/familia", headers=auth(bauti["access_token"])).json()
+    fam = cliente.get(f"/personas/{id_persona}/familia", headers=auth(bauti["accessToken"])).json()
     ids = {f["nombre"]: f["id"] for f in fam["familiares"]}
     inv = cliente.post(f"/personas/{id_persona}/invitaciones", json={"id_familiar": ids["Vero"]},
-                       headers=auth(bauti["access_token"])).json()
-    r = cliente.post("/invitaciones/aceptar", json={"codigo": inv["codigo"]}, headers=auth(vero["access_token"]))
+                       headers=auth(bauti["accessToken"])).json()
+    r = cliente.post("/invitaciones/aceptar", json={"codigo": inv["codigo"]}, headers=auth(vero["accessToken"]))
     assert r.status_code == 200, r.text
 
     for quien, token in (("bauti", bauti), ("vero", vero)):
         cliente.post("/push/token", json={"token": f"fcm-token-de-{quien}-123", "plataforma": "android"},
-                     headers=auth(token["access_token"]))
+                     headers=auth(token["accessToken"]))
     return {"persona": id_persona, "dispositivo": id_disp, "pi": pi, "ids": ids,
-            "bauti": bauti["access_token"], "vero": vero["access_token"]}
+            "bauti": bauti["accessToken"], "vero": vero["accessToken"]}

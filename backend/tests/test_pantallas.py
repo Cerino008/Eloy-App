@@ -22,17 +22,17 @@ def test_cuenta_login_refresh_logout(cliente):
                                                 "password": "otra-clave-larga"}).status_code == 409
     assert cliente.post("/auth/login", json={"email": "bauti@ejemplo.com", "password": "mal"}).status_code == 401
     login = cliente.post("/auth/login", json={"email": "bauti@ejemplo.com", "password": "una-clave-larga"}).json()
-    assert cliente.get("/auth/yo", headers=auth(login["access_token"])).json()["nombre"] == "Bautista"
+    assert cliente.get("/auth/yo", headers=auth(login["accessToken"])).json()["nombre"] == "Bautista"
 
-    nuevo = cliente.post("/auth/refresh", json={"refresh_token": login["refresh_token"]}).json()
+    nuevo = cliente.post("/auth/refresh", json={"refresh_token": login["refreshToken"]}).json()
     # Rotación: el refresh viejo ya no sirve, y la sesión vieja tampoco.
-    assert cliente.post("/auth/refresh", json={"refresh_token": login["refresh_token"]}).status_code == 401
-    assert cliente.get("/auth/yo", headers=auth(login["access_token"])).status_code == 401
-    assert cliente.get("/auth/yo", headers=auth(nuevo["access_token"])).status_code == 200
+    assert cliente.post("/auth/refresh", json={"refresh_token": login["refreshToken"]}).status_code == 401
+    assert cliente.get("/auth/yo", headers=auth(login["accessToken"])).status_code == 401
+    assert cliente.get("/auth/yo", headers=auth(nuevo["accessToken"])).status_code == 200
 
     # Cerrar sesión en todos lados corta también la del registro.
-    assert cliente.post("/auth/logout?todas=true", headers=auth(nuevo["access_token"])).status_code == 204
-    assert cliente.get("/auth/yo", headers=auth(t["access_token"])).status_code == 401
+    assert cliente.post("/auth/logout?todas=true", headers=auth(nuevo["accessToken"])).status_code == 204
+    assert cliente.get("/auth/yo", headers=auth(t["accessToken"])).status_code == 401
 
 
 def test_login_limita_intentos(cliente):
@@ -51,13 +51,13 @@ def test_vincular_codigo_de_un_solo_uso(cliente):
     codigo = cliente.post("/dispositivo/codigo", headers=auth(pi)).json()["codigo"]
     assert len(codigo) == 6
     r = cliente.post("/dispositivos/vincular", json={"codigo": codigo.lower(), "nombre_persona": "Marta"},
-                     headers=auth(bauti["access_token"]))
+                     headers=auth(bauti["accessToken"]))
     assert r.status_code == 201
     otro = registrar(cliente, "Intruso", "x@ejemplo.com")
     assert cliente.post("/dispositivos/vincular", json={"codigo": codigo},
-                        headers=auth(otro["access_token"])).status_code == 404
-    personas = cliente.get("/personas", headers=auth(bauti["access_token"])).json()
-    assert personas[0]["nombre"] == "Marta" and personas[0]["mi_rol"] == "administrador"
+                        headers=auth(otro["accessToken"])).status_code == 404
+    personas = cliente.get("/personas", headers=auth(bauti["accessToken"])).json()
+    assert personas[0]["nombre"] == "Marta" and personas[0]["miRol"] == "administrador"
     # Ya vinculado: no da más códigos.
     assert cliente.post("/dispositivo/codigo", headers=auth(pi)).status_code == 409
 
@@ -68,7 +68,7 @@ def test_codigo_vencido(cliente, reloj):
     codigo = cliente.post("/dispositivo/codigo", headers=auth(pi)).json()["codigo"]
     reloj.avanzar(minutes=11)
     assert cliente.post("/dispositivos/vincular", json={"codigo": codigo},
-                        headers=auth(bauti["access_token"])).status_code == 404
+                        headers=auth(bauti["accessToken"])).status_code == 404
 
 
 # ------------------------------------------------------------------ inicio
@@ -94,10 +94,10 @@ def test_inicio_como_en_la_pantalla(cliente, familia):
     i = cliente.get(f"/personas/{f['persona']}/inicio", headers=auth(f["bauti"])).json()
     assert i["estado"] == "bien"
     assert (i["charlas"], i["minutos"]) == (3, 18)
-    assert (i["recordatorios_cumplidos"], i["recordatorios_total"]) == (2, 3)
-    assert i["proximo_recordatorio"]["hora"] == "18:00"
-    assert i["ultima_charla"].startswith("2026-10-18T16:30:00")
-    assert i["resumen"]["es_de_hoy"] is False and "bufanda" in i["resumen"]["texto"]
+    assert (i["recordatoriosCumplidos"], i["recordatoriosTotal"]) == (2, 3)
+    assert i["proximoRecordatorio"]["hora"] == "18:00"
+    assert i["ultimaCharla"].startswith("2026-10-18T16:30:00")
+    assert i["resumen"]["esDeHoy"] is False and "bufanda" in i["resumen"]["texto"]
 
     # Reenviar los mismos eventos no los duplica.
     sync(cliente, f, eventos=[{"id": 101, "tipo": "conversacion", "descripcion": "charló 9 minuto(s)",
@@ -122,7 +122,7 @@ def test_mensajes_ida_y_vuelta(cliente, familia, reloj):
     f = familia
     m = cliente.post(f"/personas/{f['persona']}/mensajes", json={"texto": "¿Te acordaste de la pastilla?"},
                      headers=auth(f["bauti"])).json()
-    assert m["estado"] == "pendiente" and m["de"] == "Bautista" and m["es_mio"]
+    assert m["estado"] == "pendiente" and m["de"] == "Bautista" and m["esMio"]
 
     resp = sync(cliente, f)
     assert [x["id"] for x in resp["mensajes"]] == [m["id"]]
@@ -137,8 +137,8 @@ def test_mensajes_ida_y_vuelta(cliente, familia, reloj):
     reloj.avanzar(minutes=1)
     sync(cliente, f, mensajes_leidos=[55])
     hilo = cliente.get(f"/personas/{f['persona']}/mensajes", headers=auth(f["vero"])).json()
-    assert hilo[0]["estado"] == "leido" and hilo[0]["leido_en"].startswith("2026-10-18T17:01")
-    assert hilo[0]["es_mio"] is False  # lo ve Vero
+    assert hilo[0]["estado"] == "leido" and hilo[0]["leidoEn"].startswith("2026-10-18T17:01")
+    assert hilo[0]["esMio"] is False  # lo ve Vero
 
     # Marta le dicta a Eloy, con audio.
     with open("/tmp/prueba.wav", "wb") as a:
@@ -151,8 +151,8 @@ def test_mensajes_ida_y_vuelta(cliente, familia, reloj):
                                 "audio_key": key, "audio_duracion_seg": 4, "creado": "2026-10-18 14:01:00"}])
     hilo = cliente.get(f"/personas/{f['persona']}/mensajes", headers=auth(f["bauti"])).json()
     nuevo = hilo[0]
-    assert nuevo["direccion"] == "a_familia" and nuevo["para"] == "Vero" and nuevo["creado_en"].startswith("2026-10-18T17:01")
-    assert cliente.get(nuevo["audio_url"].replace("http://testserver", "")).content.startswith(b"RIFF")
+    assert nuevo["direccion"] == "a_familia" and nuevo["para"] == "Vero" and nuevo["creadoEn"].startswith("2026-10-18T17:01")
+    assert cliente.get(nuevo["audioUrl"].replace("http://testserver", "")).content.startswith(b"RIFF")
     assert any(p["datos"]["tipo"] == "mensaje" for p in emisor().enviados)
 
 
@@ -171,7 +171,7 @@ def test_recordatorios_hoy_proximos_y_sync(cliente, familia):
                         headers=auth(f["vero"])).status_code == 422
 
     lista = cliente.get(P, headers=auth(f["bauti"])).json()
-    assert [(x["titulo"], x["proxima_fecha"]) for x in lista["proximos"]] == [
+    assert [(x["titulo"], x["proximaFecha"]) for x in lista["proximos"]] == [
         ("Gimnasia", "2026-10-19"), ("Turno con la doctora", "2026-10-23")]
 
     # Viaja a Eloy, que lo guarda con ids 7 y 8.
@@ -223,7 +223,7 @@ def test_alerta_escalado_y_ya_me_ocupo(cliente, familia, reloj):
     assert urgentes[0]["titulo"] == "Marta pidió ayuda"
 
     i = cliente.get(f"/personas/{f['persona']}/inicio", headers=auth(f["vero"])).json()
-    assert i["estado"] == "alerta" and i["id_alerta_abierta"] == id_alerta
+    assert i["estado"] == "alerta" and i["idAlertaAbierta"] == id_alerta
 
     # Reenvío (por /alertas o por el sync como 'emergencia'): no se duplica.
     assert cliente.post("/dispositivo/alertas", headers=auth(f["pi"]), json={"id_local": 900}).json()["nueva"] is False
@@ -242,7 +242,7 @@ def test_alerta_escalado_y_ya_me_ocupo(cliente, familia, reloj):
         assert juan.canal == "whatsapp" and "no configurado" in juan.error
 
     a = cliente.get(f"/alertas/{id_alerta}", headers=auth(f["vero"])).json()
-    assert a["telefono_persona"] is None and [x["nombre"] for x in a["tambien_avisamos_a"]] == ["Bautista"]
+    assert a["telefonoPersona"] is None and [x["nombre"] for x in a["tambienAvisamosA"]] == ["Bautista"]
 
     # "Ya me ocupo yo": el primero gana, el segundo ve quién.
     assert cliente.post(f"/alertas/{id_alerta}/atender", headers=auth(f["bauti"])).status_code == 200
@@ -252,7 +252,7 @@ def test_alerta_escalado_y_ya_me_ocupo(cliente, familia, reloj):
 
     a = cliente.post(f"/alertas/{id_alerta}/cerrar", json={"nota": "Fui, se resbaló, está bien"},
                      headers=auth(f["bauti"])).json()
-    assert a["estado"] == "cerrada" and a["atendida_por_mi"]
+    assert a["estado"] == "cerrada" and a["atendidaPorMi"]
     assert cliente.get(f"/personas/{f['persona']}/inicio", headers=auth(f["vero"])).json()["estado"] == "bien"
 
 
@@ -270,10 +270,10 @@ def test_alerta_atendida_no_escala(cliente, familia, reloj):
 def test_familia_roles_e_invitacion(cliente, familia):
     f = familia
     fam = cliente.get(f"/personas/{f['persona']}/familia", headers=auth(f["vero"])).json()
-    assert [(x["nombre"], x["rol"], x["tiene_cuenta"]) for x in fam["familiares"]] == [
+    assert [(x["nombre"], x["rol"], x["tieneCuenta"]) for x in fam["familiares"]] == [
         ("Bautista", "administrador", True), ("Vero", "familiar", True), ("Juan", "familiar", False)]
     d = fam["dispositivos"][0]
-    assert d["conectado"] and d["wifi_ssid"] == "Casa de Marta" and d["volumen"] == 70
+    assert d["conectado"] and d["wifiSsid"] == "Casa de Marta" and d["volumen"] == 70
 
     # Vero no es administradora.
     assert cliente.post(f"/personas/{f['persona']}/invitaciones", json={},
@@ -293,16 +293,16 @@ def test_familia_roles_e_invitacion(cliente, familia):
                        headers=auth(f["bauti"])).json()
     assert inv["link"].endswith(inv["codigo"])
     tia = registrar(cliente, "Tía Ana", "ana@ejemplo.com")
-    r = cliente.post("/invitaciones/aceptar", json={"codigo": inv["codigo"]}, headers=auth(tia["access_token"]))
+    r = cliente.post("/invitaciones/aceptar", json={"codigo": inv["codigo"]}, headers=auth(tia["accessToken"]))
     assert r.status_code == 200 and r.json()["nombre"] == "Marta"
     assert cliente.post("/invitaciones/aceptar", json={"codigo": inv["codigo"]},
-                        headers=auth(tia["access_token"])).status_code == 404
+                        headers=auth(tia["accessToken"])).status_code == 404
 
 
 def test_permisos_entre_familias(cliente, familia):
     f = familia
     ajeno = registrar(cliente, "Ajeno", "ajeno@ejemplo.com")
-    h = auth(ajeno["access_token"])
+    h = auth(ajeno["accessToken"])
     assert cliente.get(f"/personas/{f['persona']}/inicio", headers=h).status_code == 403
     assert cliente.get(f"/personas/{f['persona']}/mensajes", headers=h).status_code == 403
     assert cliente.get("/personas", headers=h).json() == []

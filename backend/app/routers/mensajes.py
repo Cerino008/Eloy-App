@@ -41,9 +41,8 @@ def listar(id_persona: int, limite: int = Query(50, ge=1, le=200),
         Mensaje.id_persona_mayor == id_persona, Mensaje.direccion == "a_familia", Mensaje.estado == "entregado",
     ).values(estado="leido", leido_en=tiempo.ahora_utc()))
     db.commit()
-    return [_salida(m, nom_e or m.nombre_emisor, nom_d or m.nombre_destino or
-                    ("toda la familia" if m.direccion == "a_familia" else None), yo)
-            for m, nom_e, nom_d in filas]
+    # para = null: el mensaje es para toda la familia (la app decide cómo mostrarlo).
+    return [_salida(m, nom_e or m.nombre_emisor, nom_d or m.nombre_destino, yo) for m, nom_e, nom_d in filas]
 
 
 @router.post("/personas/{id_persona}/mensajes", response_model=MensajeOut, status_code=201)

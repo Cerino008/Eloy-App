@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 media/
 *.json.secret
+# Estado del simulador de Eloy: tiene la clave del aparato
+.eloy_simulado*.json

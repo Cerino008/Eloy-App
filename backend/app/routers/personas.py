@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import tiempo
@@ -19,7 +20,7 @@ from app.schemas import (
     InvitacionIn, InvitacionOut, MemoriaOut, PersonaPatchIn, PersonaResumenOut, RecordatorioCortoOut,
     ResumenOut,
 )
-from app.seguridad import sha256, token_aleatorio
+from app.seguridad import codigo_invitacion, limitador_invitacion, sha256
 from app.servicios.recordatorios import hay_atrasado, recordatorios_del_dia
 
 router = APIRouter(tags=["Personas y familia"])
@@ -191,7 +192,8 @@ def borrar_familiar(id_familiar: int, request: Request, u: UsuarioApp = Depends(
 @router.post("/personas/{id_persona}/invitaciones", response_model=InvitacionOut, status_code=201)
 def invitar(id_persona: int, body: InvitacionIn, request: Request, u: UsuarioApp = Depends(usuario_actual),
             db: Session = Depends(get_db)):
-    """Devuelve el link para compartir (WhatsApp, etc.). El código solo viaja en el link."""
+    """Devuelve el link para compartir (WhatsApp, etc.) con un código de 8 caracteres adentro,
+    que también se puede dictar o escribir a mano. En la base se guarda solo su hash."""
     yo = familiar_de(db, u, id_persona)
     exigir_admin(yo)
     if body.id_familiar is not None:
@@ -200,11 +202,19 @@ def invitar(id_persona: int, body: InvitacionIn, request: Request, u: UsuarioApp
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Familiar no encontrado")
         if f.id_usuario_app is not None:
             raise HTTPException(status.HTTP_409_CONFLICT, "Ese familiar ya tiene cuenta")
-    codigo = token_aleatorio(24)
-    inv = Invitacion(id_persona_mayor=id_persona, id_familiar=body.id_familiar, invitado_por=yo.id,
-                     email=body.email, rol=body.rol, codigo_hash=sha256(codigo),
-                     expira_en=tiempo.ahora_utc() + timedelta(days=settings.invitacion_dias))
-    db.add(inv)
+    for _ in range(5):
+        codigo = codigo_invitacion()
+        inv = Invitacion(id_persona_mayor=id_persona, id_familiar=body.id_familiar, invitado_por=yo.id,
+                         email=body.email, rol=body.rol, codigo_hash=sha256(codigo),
+                         expira_en=tiempo.ahora_utc() + timedelta(days=settings.invitacion_dias))
+        try:
+            with db.begin_nested():  # codigo_hash es UNIQUE: si justo se repite, se prueba con otro
+                db.add(inv)
+            break
+        except IntegrityError:
+            continue
+    else:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "No se pudo generar la invitación, reintentá")
     auditar(db, "invitar_familiar", request, id_usuario=u.id, id_persona=id_persona,
             rol=body.rol, id_familiar=body.id_familiar)
     db.commit()
@@ -214,9 +224,14 @@ def invitar(id_persona: int, body: InvitacionIn, request: Request, u: UsuarioApp
 @router.post("/invitaciones/aceptar", response_model=PersonaResumenOut)
 def aceptar_invitacion(body: AceptarInvitacionIn, request: Request, u: UsuarioApp = Depends(usuario_actual),
                        db: Session = Depends(get_db)):
+    # Con 8 caracteres se podría probar a ciegas: 5 códigos equivocados cada 15 minutos por usuario.
+    clave_limite = f"u{u.id}"
+    if limitador_invitacion.bloqueado(clave_limite):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Demasiados intentos. Probá en 15 minutos.")
     ahora = tiempo.ahora_utc()
     inv = db.scalar(select(Invitacion).where(Invitacion.codigo_hash == sha256(body.codigo)).with_for_update())
     if inv is None or inv.aceptada_en is not None or inv.expira_en <= ahora:
+        limitador_invitacion.fallo(clave_limite)
         raise HTTPException(status.HTTP_404_NOT_FOUND, "La invitación no existe, ya se usó o venció")
     persona = persona_o_404(db, inv.id_persona_mayor)
 
@@ -249,6 +264,7 @@ def aceptar_invitacion(body: AceptarInvitacionIn, request: Request, u: UsuarioAp
     inv.aceptada_en, inv.id_usuario_acepto = ahora, u.id
     auditar(db, "aceptar_invitacion", request, id_usuario=u.id, id_persona=persona.id, id_familiar=f.id)
     db.commit()
+    limitador_invitacion.limpiar(clave_limite)
     return PersonaResumenOut(id=persona.id, nombre=persona.nombre, mi_rol=f.rol, id_mi_familiar=f.id)
 
 

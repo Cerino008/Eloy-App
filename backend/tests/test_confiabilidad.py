@@ -211,13 +211,13 @@ def test_cerrar_una_alerta_exige_ser_quien_la_atendio_o_administrador(cliente, f
     # Un administrador puede cerrar una falsa alarma sin haberla atendido; queda como quien la cerró.
     falsa = crear_alerta(cliente, f, id_local=2)
     r = cliente.post(f"/alertas/{falsa}/cerrar", json={"nota": "Falsa alarma"}, headers=auth(f["bauti"]))
-    assert r.status_code == 200 and r.json()["atendida_por_mi"]
+    assert r.status_code == 200 and r.json()["atendidaPorMi"]
 
 
 def test_quien_no_es_de_la_familia_recibe_404_igual_que_si_no_existiera(cliente, familia):
     f = familia
     id_alerta = crear_alerta(cliente, f)
-    ajeno = auth(registrar(cliente, "Ajeno", "ajeno@ejemplo.com")["access_token"])
+    ajeno = auth(registrar(cliente, "Ajeno", "ajeno@ejemplo.com")["accessToken"])
     existente = [cliente.get(f"/alertas/{id_alerta}", headers=ajeno),
                  cliente.post(f"/alertas/{id_alerta}/atender", headers=ajeno),
                  cliente.post(f"/alertas/{id_alerta}/cerrar", json={}, headers=ajeno)]

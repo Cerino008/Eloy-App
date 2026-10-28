@@ -37,11 +37,17 @@ def token_aleatorio(n_bytes: int = 32) -> str:
     return secrets.token_urlsafe(n_bytes)
 
 
-# Códigos de vinculación: sin 0/O ni 1/I/L para que se puedan escribir a mano.
+# Códigos de vinculación y de invitación: sin 0/O ni 1/I/L para que se puedan escribir a mano.
 _ALFABETO_CODIGO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 
 
 def codigo_vinculacion(largo: int = 6) -> str:
+    return "".join(secrets.choice(_ALFABETO_CODIGO) for _ in range(largo))
+
+
+def codigo_invitacion(largo: int = 8) -> str:
+    """Viaja en el link y también se puede dictar: 31^8 (~850 mil millones) combinaciones.
+    Dura 7 días y /invitaciones/aceptar tiene límite de intentos (limitador_invitacion)."""
     return "".join(secrets.choice(_ALFABETO_CODIGO) for _ in range(largo))
 
 
@@ -90,4 +96,5 @@ class Limitador:
 
 limitador_login = Limitador(maximo=5, ventana_seg=15 * 60)
 limitador_vincular = Limitador(maximo=5, ventana_seg=15 * 60)
+limitador_invitacion = Limitador(maximo=5, ventana_seg=15 * 60)  # códigos de invitación equivocados, por usuario
 limitador_dispositivo = Limitador(maximo=10, ventana_seg=15 * 60)  # claves de Eloy y de fábrica equivocadas

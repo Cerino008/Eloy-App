@@ -1,3 +1,105 @@
+# Cambios v2.2 — camelCase, invitación corta y simulador de Eloy
+
+Pedido de Héctor, hecho por Bautista (con Claude) en la rama `backend-correcciones`, sin mergear: la revisa Héctor.
+
+> Estado: **44 tests pasan** (los 35 de antes + 9 nuevos en `tests/test_correcciones.py`) contra MariaDB 10.11
+> de `docker compose`, y `ruff` no marca nada. Los 35 de antes no se borraron: se cambiaron solo las claves
+> que leen de las respuestas (`["access_token"]` → `["accessToken"]`, etc.).
+
+## 1. Respuestas en camelCase
+
+- `app/schemas.py` tiene un modelo base, `ModeloApp`, con `ConfigDict(alias_generator=to_camel, populate_by_name=True)`.
+  Lo heredan **todos** los modelos de ese archivo. Sale todo en camelCase (`idAlertaAbierta`, `esMio`,
+  `tambienAvisamosA`...) y al entrar se acepta camelCase **y** snake_case.
+- En el código no cambia nada: los modelos se siguen armando con snake_case (`TokensOut(access_token=...)`) y
+  los `model_dump(exclude_unset=True)` de los PATCH devuelven los nombres de los campos (hay un test con
+  `{"prioridadAlerta": 9}` para eso).
+- **Siguen en snake_case:**
+  - El contrato con la Raspberry (`schemas_dispositivo.py` y la respuesta del sync, que es un dict).
+  - Los **parámetros de la URL** (`?antes_de=`, `?limite=`, `?id_persona=`, `?todas=`): no son modelos.
+    La app manda la URL en snake_case aunque el cuerpo vaya en camelCase.
+  - Los `data` de los push (`tipo`, `id_alerta`, `id_persona`, `id_mensaje`): no estaban en el pedido. Si la app
+    los quiere en camelCase, es cambiar 4 diccionarios en `servicios/alertas.py`, `routers/alertas.py` y
+    `routers/dispositivo_pi.py`.
+
+## 2. Código de invitación de 8 caracteres
+
+- Antes: `token_aleatorio(24)` (32 caracteres, imposible de dictar). Ahora `seguridad.codigo_invitacion()`:
+  8 caracteres del mismo alfabeto que el código de vinculación (sin 0/O ni 1/I/L), unos 850 mil millones de
+  combinaciones. El link es el mismo (`LINK_INVITACION + codigo`) y en la base se sigue guardando solo el hash.
+- `codigo_hash` es UNIQUE: si un código justo se repite, se prueba con otro (hasta 5 veces, con `begin_nested`).
+- `AceptarInvitacionIn.codigo`: exactamente 8 caracteres. Se le sacan los espacios y se pasa a mayúsculas antes
+  de validar, así sirve escrito a mano. Se busca **solo en mayúsculas**: todavía no hay invitaciones reales con el
+  código largo, así que no hizo falta convivir con las viejas.
+- **Límite de intentos nuevo** en `POST /invitaciones/aceptar`: 5 códigos equivocados cada 15 minutos **por
+  usuario** → 429 (`limitador_invitacion`). Con 32 caracteres no hacía falta; con 8 se podía probar a ciegas.
+  Aceptar una invitación limpia el contador.
+
+## 3. Mensajes para toda la familia: `para = null`
+
+`GET /personas/{id}/mensajes` devolvía `para: "toda la familia"` cuando Marta le hablaba a todos. Ahora es `null`,
+y la app decide cómo mostrarlo. Si el mensaje es para alguien, sigue viniendo su nombre.
+
+## 4. `expira_en` del código de vinculación con zona
+
+`POST /dispositivo/codigo` devolvía `expira_en` sin zona (`2026-10-18T17:10:00`), y la Pi no sabía si era UTC o
+local. `CodigoOut.expira_en` ahora es `FechaUTC` (sale `...Z`). Revisé el resto de lo que se le responde a la Pi:
+era la única fecha sin zona (los `creado_en` del sync ya llevaban la `Z`).
+
+## 5. Simulador de Eloy: `herramientas/simular_eloy.py`
+
+Hace de Raspberry según el "Contrato con la Raspberry" del README. Solo usa la biblioteca estándar (anda en el
+Python de la Pi) y sirve de base para el módulo de sync real.
+
+```bash
+docker compose up --build                       # API en :8000
+python herramientas/simular_eloy.py alta         # registra un Eloy con la PROVISIONING_KEY de docker-compose
+python herramientas/simular_eloy.py codigo       # código para "Vincular a Eloy" en la app
+python herramientas/simular_eloy.py sync         # correrlo 2 o 3 veces seguidas
+python herramientas/simular_eloy.py alerta "Me caí en la cocina"
+```
+
+- `herramientas/.eloy_simulado.json` hace de SQLite: uid y clave (permisos 600, en `.gitignore`; el Dockerfile no
+  copia `herramientas/`), listas, ids locales, cursores de lo incremental y lo que falta confirmar.
+  Con `--estado otro.json` se simula más de un Eloy.
+- `alta` carga los datos de ejemplo: Marta, 3 recordatorios (presión 9:00, almorzar 13:00, gimnasia lunes y
+  jueves), una charla de 4 minutos y un mensaje de Marta para toda la familia.
+- `sync` manda las listas completas y lo nuevo, imprime la respuesta, aplica lo recibido y guarda para la vuelta
+  siguiente las confirmaciones (`id_local` + `version`), los `mensajes_leidos` y el resultado de los comandos
+  (volumen, borrar memoria, restaurar). Antes de mandar, marca como que sonaron los recordatorios de hoy cuya
+  hora ya pasó (`ultima_ejecucion`).
+- Un mensaje de la app tarda 3 vueltas en quedar "leído": llega → se confirma (entregado) → Eloy informa que lo leyó.
+- `alerta` guarda la emergencia en la tabla de mensajes y avisa ya por `/dispositivo/alertas`; el sync siguiente
+  la reenvía y el `id_local` evita que se duplique (así está el contrato).
+
+## Cómo se comprobó
+
+- **Tests:** 44 pasan. Los 9 nuevos cubren lo de arriba: ninguna clave con guion bajo en 7 respuestas de la app,
+  entrada en las dos formas (incluido un PATCH), contrato con la Pi en snake_case, código de 8 del alfabeto con
+  link y `expiraEn` con zona, aceptar en minúscula, largo inválido (422), límite (429, y es por usuario), código
+  repetido, `para` en `null` y `expira_en` con `Z`.
+- **Pruebas de mutación:** volví a romper cada arreglo por separado (`para` con "toda la familia", `CodigoOut` sin
+  zona, sin límite, sin pasar a mayúsculas, sin reintento) y en cada caso falló su test.
+- **`docker compose up --build`: probado por primera vez** (en v2.1 no había Docker). Levanta la base y la API.
+  Con el simulador y una "app" de prueba que manda camelCase: alta → código → vincular → sync (Inicio muestra la
+  charla y 2/2 recordatorios) → mensaje de la app leído en la tercera vuelta → recordatorio nuevo recibido y
+  confirmado → volumen 50 aplicado → alerta (Inicio en `alerta`, sin duplicarse con el sync) → invitación de 8
+  aceptada en minúscula → restaurar (queda desvinculado y vuelve a dar código).
+- Los tests corrieron con Python 3.14 (es lo que hay en la compu de Bautista); la imagen de Docker usa 3.12.
+
+## Para la app (cuando se mergee)
+
+- `src/codigos.ts`: `LARGO_MINIMO_INVITACION` pasa de 10 a 8.
+- Al conectar `cliente.ts`: cuerpos en camelCase, URL en snake_case, `para: null` = toda la familia.
+
+## Qué falta
+
+- Decidir si los `data` de los push también van en camelCase (punto 1).
+- Aviso de los tests: `StarletteDeprecationWarning` por usar `httpx` con el `TestClient`; pide `httpx2`. No rompe nada.
+- Lo pendiente de v2.1 sigue igual (abajo), salvo que el sync de la Pi ya tiene una base: `herramientas/simular_eloy.py`.
+
+---
+
 # Cambios v2.1 — confiabilidad de las alertas
 
 Partí del zip `eloy-backend` tal cual estaba (v2.0) y lo revisé leyendo todo el código y

@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas import FechaUTC
+
 
 class RegistroDispositivoIn(BaseModel):
     uid_serie: str = Field(min_length=4, max_length=64)
@@ -28,7 +30,7 @@ class TokenDispositivoOut(BaseModel):
 
 class CodigoOut(BaseModel):
     codigo: str
-    expira_en: datetime
+    expira_en: FechaUTC  # con zona ("...Z"): la Pi puede estar en otra hora
 
 
 class AlertaPiIn(BaseModel):

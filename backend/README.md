@@ -13,7 +13,7 @@ python -m scripts.init_db       # crea las 18 tablas (una sola vez)
 uvicorn app.main:app --reload
 ```
 
-O con Docker (levanta la base y la API juntas, sin instalar nada más; **sin probar**, ver CAMBIOS.md):
+O con Docker (levanta la base y la API juntas, sin instalar nada más; probado en v2.2):
 
 ```bash
 docker compose up --build       # http://localhost:8000/docs
@@ -43,6 +43,7 @@ app/
   tiempo.py             "hoy" según la zona horaria de la persona
   routers/              un archivo por pantalla + dispositivo_pi.py
   servicios/            sync, alertas, recordatorios, push (FCM + Expo), almacenamiento, mantenimiento
+herramientas/simular_eloy.py  simulador de la Raspberry (alta, codigo, sync, alerta), sin dependencias
 sql/eloy_servidor.sql   esquema (fuente de verdad)
 sql/cambios/            ALTER para bases ya creadas con una versión anterior
 tests/                  un test por pantalla, con los datos de las capturas
@@ -68,9 +69,14 @@ usan el token que devuelve `/dispositivo/token`.
 
 Notas para la app:
 
+- Los cuerpos JSON van en **camelCase** (`idPersona`, `esMio`...); al entrar también se acepta snake_case.
+  Los parámetros de la URL siguen en snake_case (`?antes_de=`, `?id_persona=`, `?todas=`).
 - Las fechas salen en UTC (`...Z`); la app las muestra en la hora del celular.
-- `audio_url` es un link firmado que vence en 10 minutos: pedir el hilo de nuevo si venció.
-- `GET /inicio` devuelve `id_alerta_abierta`: si `estado == "alerta"`, abrir esa pantalla.
+- `audioUrl` es un link firmado que vence en 10 minutos: pedir el hilo de nuevo si venció.
+- `GET /inicio` devuelve `idAlertaAbierta`: si `estado == "alerta"`, abrir esa pantalla.
+- En los mensajes, `para: null` significa "para toda la familia".
+- La invitación trae un código de 8 caracteres dentro del link; `POST /invitaciones/aceptar` lo acepta en
+  minúscula y responde 429 después de 5 códigos equivocados en 15 minutos.
 - Push: la app registra su token con `POST /push/token` y crea en Android el canal
   `alertas` (importancia alta) y `general`. Los `data` traen `tipo` (`alerta`,
   `alerta_atendida`, `mensaje`) e ids para abrir la pantalla correcta.
@@ -82,7 +88,7 @@ Notas para la app:
    en un archivo con permisos `600` **fuera** de lo que borra "restaurar", y llama a
    `POST /dispositivo/registro` con el header `X-Provisioning-Key`.
 2. **Token:** `POST /dispositivo/token {uid_serie, secret}` → token de 24 h. Renovarlo al recibir 401.
-3. **Vincular:** `POST /dispositivo/codigo` → código de 6 caracteres para el QR (vence en 10 min).
+3. **Vincular:** `POST /dispositivo/codigo` → código de 6 caracteres para el QR (vence en 10 min; `expira_en` en UTC con `Z`).
 4. **Audios:** `POST /dispositivo/audio` (multipart, campo `archivo`) → `audio_key`.
 5. **Alerta:** apenas Marta pide ayuda, `POST /dispositivo/alertas` sin esperar el audio;
    el audio puede ir después en el sync (el mismo `id_local` completa la alerta sin duplicarla).
@@ -184,6 +190,17 @@ Detalle, motivos y cómo se probó cada cosa: **`CAMBIOS.md`**. Resumen:
   responden 404 a quien no es de la familia. Límite de intentos para `/dispositivo/token` y `/registro`.
 - Limpieza automática de sesiones y códigos vencidos. `Dockerfile` ya no confía en `X-Forwarded-For` de cualquiera.
 
+## Cambios v2.2 (camelCase, invitación corta, simulador)
+
+Detalle en **`CAMBIOS.md`**. Resumen: las respuestas a la app salen en camelCase (la Pi sigue en snake_case);
+el código de invitación tiene 8 caracteres y límite de intentos; `para: null` en los mensajes para toda la
+familia; `expira_en` del código de vinculación con zona; y `herramientas/simular_eloy.py` hace de Raspberry:
+
+```bash
+docker compose up --build
+python herramientas/simular_eloy.py alta      # después: codigo, sync (2 o 3 veces), alerta "motivo"
+```
+
 ## Deploy
 
 Hace falta: un contenedor con el `Dockerfile`, una base MySQL 8 o MariaDB administrada y,
@@ -208,7 +225,8 @@ prendida**; si no, el segundo aviso no sale. Varias instancias no mandan avisos 
 
 ## Pendiente
 
-- **Módulo de sync en la Raspberry** (lo más grande que falta; necesita `sqlite3 aloy.db .schema` real).
+- **Módulo de sync en la Raspberry** (lo más grande que falta; necesita `sqlite3 aloy.db .schema` real). Base:
+  `herramientas/simular_eloy.py`, que ya hace el ida y vuelta completo contra la API.
 - **Avisar por push cuando Eloy se queda sin conexión** (hoy solo se ve al abrir la app). Requiere guardar
   "ya avisé" para no repetir: va con un cambio de esquema.
 - **Receipts de Expo:** hoy "ticket ok" significa que Expo aceptó el mensaje, no que llegó al celular.

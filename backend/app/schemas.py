@@ -1,11 +1,17 @@
 """Lo que entra y sale de la API de la app. Todas las fechas salen en UTC con zona
-("2026-10-18T13:42:00Z"); la app las muestra en la hora del celular."""
+("2026-10-18T13:42:00Z"); la app las muestra en la hora del celular.
+
+Los cuerpos JSON van en camelCase (idPersona, esMio...): todos los modelos heredan de
+ModeloApp. Al entrar se acepta también snake_case. Los parámetros de la URL (?antes_de=,
+?id_persona=, ?todas=) no son modelos y siguen en snake_case. El contrato con la Raspberry
+(schemas_dispositivo.py) queda en snake_case."""
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from typing import Annotated, Literal, Optional
 
-from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic.alias_generators import to_camel
 
 from app.tiempo import DIAS
 
@@ -18,9 +24,15 @@ FechaUTC = Annotated[datetime, AfterValidator(_utc)]
 HoraHHMM = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["09:00"])]
 
 
+class ModeloApp(BaseModel):
+    """Base de todo lo que habla con la app: sale en camelCase y entra en camelCase o snake_case
+    (populate_by_name). En el código se sigue usando snake_case: TokensOut(access_token=...)."""
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
 # ---------------------------------------------------------------- cuenta
 
-class RegistroIn(BaseModel):
+class RegistroIn(ModeloApp):
     nombre: str = Field(min_length=1, max_length=80)
     apellido: str | None = Field(None, max_length=80)
     email: EmailStr
@@ -29,24 +41,24 @@ class RegistroIn(BaseModel):
     nombre_equipo: str | None = Field(None, max_length=100, examples=["Moto G de Bautista"])
 
 
-class LoginIn(BaseModel):
+class LoginIn(ModeloApp):
     email: EmailStr
     password: str
     nombre_equipo: str | None = Field(None, max_length=100)
 
 
-class RefreshIn(BaseModel):
+class RefreshIn(ModeloApp):
     refresh_token: str
 
 
-class TokensOut(BaseModel):
+class TokensOut(ModeloApp):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expira_en_seg: int
 
 
-class UsuarioOut(BaseModel):
+class UsuarioOut(ModeloApp):
     id: int
     nombre: str
     apellido: str | None
@@ -54,21 +66,21 @@ class UsuarioOut(BaseModel):
     telefono: str | None
 
 
-class PushTokenIn(BaseModel):
+class PushTokenIn(ModeloApp):
     token: str = Field(min_length=10, max_length=255)
     plataforma: Literal["android", "ios", "web"]
 
 
 # ---------------------------------------------------------------- personas / inicio
 
-class PersonaResumenOut(BaseModel):
+class PersonaResumenOut(ModeloApp):
     id: int
     nombre: str
     mi_rol: str
     id_mi_familiar: int
 
 
-class PersonaPatchIn(BaseModel):
+class PersonaPatchIn(ModeloApp):
     """Solo lo que Eloy no conoce. Nombre y edad los manda el dispositivo."""
     apellido: str | None = Field(None, max_length=80)
     telefono: str | None = Field(None, max_length=30)
@@ -76,19 +88,19 @@ class PersonaPatchIn(BaseModel):
     zona_horaria: str | None = Field(None, max_length=50)
 
 
-class ResumenOut(BaseModel):
+class ResumenOut(ModeloApp):
     fecha: date
     texto: str
     es_de_hoy: bool
 
 
-class RecordatorioCortoOut(BaseModel):
+class RecordatorioCortoOut(ModeloApp):
     id: int
     hora: str
     titulo: str
 
 
-class InicioOut(BaseModel):
+class InicioOut(ModeloApp):
     persona: dict
     estado: Literal["bien", "atencion", "sin_conexion", "alerta"]
     id_alerta_abierta: int | None
@@ -103,11 +115,11 @@ class InicioOut(BaseModel):
 
 # ---------------------------------------------------------------- mensajes
 
-class MensajeIn(BaseModel):
+class MensajeIn(ModeloApp):
     texto: str = Field(min_length=1, max_length=2000)
 
 
-class MensajeOut(BaseModel):
+class MensajeOut(ModeloApp):
     id: int
     direccion: Literal["de_familia", "a_familia"]
     de: str | None
@@ -136,7 +148,7 @@ def _validar_dias(v):
     return v
 
 
-class RecordatorioIn(BaseModel):
+class RecordatorioIn(ModeloApp):
     titulo: str = Field(min_length=1, max_length=120)
     descripcion: str | None = Field(None, max_length=255)
     hora: HoraHHMM
@@ -147,7 +159,7 @@ class RecordatorioIn(BaseModel):
     _dias = field_validator("dias_semana")(_validar_dias)
 
 
-class RecordatorioPatchIn(BaseModel):
+class RecordatorioPatchIn(ModeloApp):
     titulo: str | None = Field(None, min_length=1, max_length=120)
     descripcion: str | None = Field(None, max_length=255)
     hora: HoraHHMM | None = None
@@ -158,7 +170,7 @@ class RecordatorioPatchIn(BaseModel):
     _dias = field_validator("dias_semana")(_validar_dias)
 
 
-class RecordatorioOut(BaseModel):
+class RecordatorioOut(ModeloApp):
     id: int
     titulo: str
     descripcion: str | None
@@ -172,7 +184,7 @@ class RecordatorioOut(BaseModel):
     proxima_fecha: date | None = Field(None, description="solo en próximos días")
 
 
-class RecordatoriosOut(BaseModel):
+class RecordatoriosOut(ModeloApp):
     fecha: date
     hoy: list[RecordatorioOut]
     proximos: list[RecordatorioOut]
@@ -180,12 +192,12 @@ class RecordatoriosOut(BaseModel):
 
 # ---------------------------------------------------------------- alertas
 
-class AvisadoOut(BaseModel):
+class AvisadoOut(ModeloApp):
     nombre: str
     parentesco: str | None
 
 
-class AlertaOut(BaseModel):
+class AlertaOut(ModeloApp):
     id: int
     id_persona: int
     persona: str
@@ -204,13 +216,13 @@ class AlertaOut(BaseModel):
     tambien_avisamos_a: list[AvisadoOut]
 
 
-class CerrarAlertaIn(BaseModel):
+class CerrarAlertaIn(ModeloApp):
     nota: str | None = Field(None, max_length=255, examples=["Fui, se resbaló, está bien"])
 
 
 # ---------------------------------------------------------------- familia
 
-class FamiliarOut(BaseModel):
+class FamiliarOut(ModeloApp):
     id: int
     nombre: str
     parentesco: str | None
@@ -222,7 +234,7 @@ class FamiliarOut(BaseModel):
     soy_yo: bool
 
 
-class DispositivoOut(BaseModel):
+class DispositivoOut(ModeloApp):
     id: int
     conectado: bool
     ultima_conexion: Optional[FechaUTC]
@@ -232,13 +244,13 @@ class DispositivoOut(BaseModel):
     restaurando: bool
 
 
-class FamiliaOut(BaseModel):
+class FamiliaOut(ModeloApp):
     mi_rol: str
     familiares: list[FamiliarOut]
     dispositivos: list[DispositivoOut]
 
 
-class FamiliarPatchIn(BaseModel):
+class FamiliarPatchIn(ModeloApp):
     nombre: str | None = Field(None, min_length=1, max_length=80)
     parentesco: str | None = Field(None, max_length=40)
     rol: Literal["administrador", "familiar"] | None = None
@@ -247,23 +259,29 @@ class FamiliarPatchIn(BaseModel):
     telefono: str | None = Field(None, max_length=30)
 
 
-class InvitacionIn(BaseModel):
+class InvitacionIn(ModeloApp):
     email: EmailStr | None = None
     rol: Literal["administrador", "familiar"] = "familiar"
     id_familiar: int | None = Field(None, description="si ya está en la lista (ej. Juan) y solo le falta la cuenta")
 
 
-class InvitacionOut(BaseModel):
+class InvitacionOut(ModeloApp):
     link: str
     codigo: str
     expira_en: FechaUTC
 
 
-class AceptarInvitacionIn(BaseModel):
-    codigo: str = Field(min_length=10)
+class AceptarInvitacionIn(ModeloApp):
+    codigo: str = Field(min_length=8, max_length=8, description="los 8 caracteres del link; se aceptan en minúscula")
+
+    @field_validator("codigo", mode="before")
+    @classmethod
+    def _normalizar(cls, v):
+        # El código se genera en mayúsculas: así sirve aunque lo escriban a mano en minúscula.
+        return v.strip().upper() if isinstance(v, str) else v
 
 
-class MemoriaOut(BaseModel):
+class MemoriaOut(ModeloApp):
     clave: str
     valor: str
     actualizado_en: FechaUTC
@@ -271,20 +289,20 @@ class MemoriaOut(BaseModel):
 
 # ---------------------------------------------------------------- dispositivos (desde la app)
 
-class VincularIn(BaseModel):
+class VincularIn(ModeloApp):
     codigo: str = Field(min_length=4, max_length=12)
     id_persona: int | None = Field(None, description="para reemplazar el Eloy de una persona que ya existe")
     nombre_persona: str | None = Field(None, max_length=80, description="si es nueva; después Eloy lo actualiza")
 
 
-class VincularOut(BaseModel):
+class VincularOut(ModeloApp):
     id_persona: int
     id_dispositivo: int
 
 
-class DispositivoPatchIn(BaseModel):
+class DispositivoPatchIn(ModeloApp):
     volumen: int = Field(ge=0, le=100)
 
 
-class RestaurarIn(BaseModel):
+class RestaurarIn(ModeloApp):
     confirmacion: Literal["RESTAURAR"] = Field(description="segunda confirmación: la app la manda tras el segundo diálogo")
