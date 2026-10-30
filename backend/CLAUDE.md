@@ -60,4 +60,5 @@ herramientas/              simular_eloy.py: hace de Pi, sin dependencias (estado
 - Reintentos y reavisos de alertas, push por Expo, controles de producción → `CAMBIOS.md`, v2.1.
 - camelCase, código de invitación de 8, simulador → `CAMBIOS.md`, v2.2.
 - Base en partes, TLS verificado, UID/GID 10001 de la imagen y `FORWARDED_ALLOW_IPS` → `CAMBIOS.md`, v2.3.
+- El deploy en Northflank (recursos, variables, logs, comandos) → `DEPLOY.md`.
 - Lo que falta → README, "Pendiente".

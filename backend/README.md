@@ -209,6 +209,8 @@ de audios tenga permisos; y los tests pasan también en MySQL 8.4. **Nada cambia
 
 ## Deploy
 
+**Cómo quedó en Northflank, cómo ver los logs y cómo operarlo: `DEPLOY.md`.**
+
 Hace falta: un contenedor con el `Dockerfile`, una base MySQL 8 o MariaDB administrada y,
 para los audios, un bucket S3 compatible. Pasos comunes a cualquier proveedor:
 
