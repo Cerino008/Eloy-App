@@ -45,7 +45,9 @@ imprimió. No están en el repo ni en ningún archivo: se ven en el panel (secre
   con `X-Forwarded-For: 1.2.3.4` el log muestra la IP pública real. **Nunca `*`.**
 - **Volumen:** Northflank lo monta con el grupo 10001 de la imagen (`drwxrwsr-x root eloy`); la API escribe.
 - **Backups:** dump semanal, domingos 06:00 UTC (03:00 en Argentina), se guardan 7 días. El plan gratis **no
-  permite backups diarios**. Antes de algo riesgoso, hacer uno a mano: addon `eloy-db` → Backups → Backup now.
+  permite backups diarios**. Antes de algo riesgoso, hacer uno a mano: addon `eloy-db` → Backups → Backup now, o
+  `northflank backup addon --projectId default --addonId eloy-db --input '{"name": "antes-de-x", "backupType": "dump"}'`
+  y esperar a que `northflank get addon backup --projectId default --addonId eloy-db --backupId antes-de-x` diga `completed`.
 - **La base se creó** con `python -m scripts.init_db` adentro del contenedor (30/10/2026, 18 tablas). No hay que
   repetirlo: falla si las tablas ya existen.
 
@@ -89,7 +91,8 @@ northflank get addon logs --projectId default --addonId eloy-db --lineLimit 100
 northflank exec service --projectId default --serviceId eloy-api --cmd "python -m scripts.init_db"
 ```
 
-Sin terminal interactiva (scripts, CI) el CLI se traga la salida: en macOS, anteponer `script -q /dev/null`.
+Sin terminal interactiva (scripts, CI, un agente) el CLI se traga la salida: en macOS, anteponer `script -q /dev/null` y
+agregar `< /dev/null` al final (si no, `script` puede fallar con `tcgetattr/ioctl` y el comando no se ejecuta).
 
 Para un cambio de esquema (`sql/cambios/NNN_*.sql`): `northflank forward addon --projectId default --addonId eloy-db`
 abre la base en tu compu y se aplica con el cliente de MySQL, con los datos de conexión del panel.
