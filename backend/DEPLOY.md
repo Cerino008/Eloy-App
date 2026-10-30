@@ -30,7 +30,7 @@ imprimió. No están en el repo ni en ningún archivo: se ven en el panel (secre
 
 - **Deploy continuo:** cada push a `main` reconstruye la imagen y la despliega. No se pudo limitar a los cambios de
   `backend/` (Northflank ignora `pathIgnoreRules` en este plan), así que también un commit solo de la app redespliega.
-- **Cada redeploy o reinicio corta unos 30–40 s:** con el volumen, Northflank apaga el contenedor viejo antes de
+- **Cada redeploy o reinicio corta entre 30 s y 1 minuto** (medido: 35–55 s): con el volumen, Northflank apaga el contenedor viejo antes de
   prender el nuevo. Mientras tanto la API responde 503; la Pi reintenta en el próximo sync y la app muestra el error.
 - **Health checks:** readiness HTTP `GET /salud` en el 8000 (si la base no responde, Northflank deja de mandarle
   tráfico) y liveness TCP en el 8000 (así una caída de la base no reinicia la API en bucle).
