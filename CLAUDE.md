@@ -155,7 +155,7 @@ type Alerta = {                                                                 
 Lo que la app simula en `src/api/cliente.ts` igual que el backend; al conectar, seguir lo del backend:
 
 - **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas` (`mi_rol`, `id_mi_familiar`) y en `GET /personas/{id}/familia` (`mi_rol`, `soy_yo`).
-- **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expira_en }`. El código viaja dentro del link: la app comparte el link (y el código aparte, por si lo piden). En la rama `backend-correcciones` pasa a **8 caracteres** (se acepta en minúscula; 429 después de 5 códigos equivocados en 15 minutos): al mergearla, `LARGO_MINIMO_INVITACION` de `src/codigos.ts` pasa de 10 a 8.
+- **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expiraEn }`. El código viaja dentro del link: la app comparte el link (y el código aparte, por si lo piden). Tiene **8 caracteres** (se acepta en minúscula; 429 después de 5 códigos equivocados en 15 minutos).
 - **Volumen:** `PATCH /dispositivos/{id}` con `{ volumen }` responde **202**: Eloy lo aplica en la próxima sincronización (cada 30 s). Solo administradores (los demás ven el volumen sin slider). La app no lo da por hecho: muestra "Eloy lo cambia en la próxima sincronización" y recarga cada 15 s con la pantalla a la vista; a los 2 minutos deja de recargar y avisa que Eloy puede estar sin conexión.
 - **Restaurar de fábrica:** `POST /dispositivos/{id}/restaurar` con `{"confirmacion": "RESTAURAR"}` (la app lo manda tras el segundo aviso); responde 202 y 409 si ya hay una en curso. Mientras `restaurando` es verdadero, Familia lo dice en vez del botón; cuando Eloy sincroniza queda desvinculado (los familiares, mensajes y recordatorios siguen en el servidor).
 - **Vincular:** `POST /dispositivos/vincular` responde el mismo 404 para un código mal escrito o vencido (la app muestra un solo texto), 429 tras 5 intentos y 409 si ese Eloy ya está vinculado. Con `id_persona` hace falta ser administrador: en Familia, "Vincular a Eloy" solo lo ven ellos.
@@ -164,7 +164,7 @@ Lo que la app simula en `src/api/cliente.ts` igual que el backend; al conectar, 
 
 ### Pendiente con Héctor
 
-- **camelCase:** hecho en la rama `backend-correcciones` (junto con `para: null` para los mensajes a toda la familia y el código de invitación de 8): falta que Héctor la revise y la mergee. Los `data` de los push (`id_alerta`, `id_persona`…) siguen en snake_case: decidir con él.
+- **`data` de los push** (`id_alerta`, `id_persona`…): siguen en snake_case; la app los pasa a camelCase al recibirlos.
 
 ### Pendiente en la app
 

@@ -5,7 +5,7 @@ export const ALFABETO_VINCULACION = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 export const LARGO_VINCULACION = 6;
 
 // El backend no acepta códigos de invitación más cortos.
-export const LARGO_MINIMO_INVITACION = 10;
+export const LARGO_MINIMO_INVITACION = 8;
 
 // Si es un link con ?codigo=, el código; si no, el texto tal cual (sin espacios alrededor).
 // Sirve para el QR de Eloy y para la invitación pegada.
