@@ -15,7 +15,7 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { consultas } from '@/api/consultas';
-import { ErrorApi } from '@/api/errores';
+import { esRespuestaDelServidor } from '@/api/errores';
 import { BotonTexto, Cargando, ErrorAlCargar, Pantalla } from '@/componentes';
 import { SesionProvider, useSesion } from '@/sesion';
 import { colores, espacio } from '@/tema';
@@ -48,13 +48,13 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
   // Un solo reintento: con los 3 de fábrica el error tarda varios segundos en aparecer.
-  // Las respuestas 4xx (404, 409...) no se reintentan: la respuesta no va a cambiar.
+  // Las respuestas 4xx (404, 409...) no se reintentan: la respuesta no va a cambiar. Sin conexión, sí.
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            retry: (fallas, error) => !(error instanceof ErrorApi && error.estado < 500) && fallas < 1,
+            retry: (fallas, error) => !esRespuestaDelServidor(error) && fallas < 1,
           },
         },
       }),

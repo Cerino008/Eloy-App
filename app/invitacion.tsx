@@ -2,7 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
-import { ErrorApi } from '@/api/errores';
+import { esRespuestaDelServidor } from '@/api/errores';
 import { useAceptarInvitacion } from '@/api/useAceptarInvitacion';
 import { Boton, BotonVolver, CampoTexto, Consejo, Pantalla, Texto } from '@/componentes';
 import { codigoDeTexto, LARGO_MINIMO_INVITACION } from '@/codigos';
@@ -34,7 +34,7 @@ export default function Invitacion() {
     // Si sale bien no hace falta navegar: con la persona nueva, el flujo de entrada lleva a las pestañas.
     aceptar.mutate(codigo, {
       onError: (falla) => {
-        if (falla instanceof ErrorApi && falla.estado < 500) setErrorServidor(falla.message);
+        if (esRespuestaDelServidor(falla)) setErrorServidor(falla.message);
         else Alert.alert('No pudimos sumarte a la familia', 'Revisá que el teléfono tenga internet y probá de nuevo.');
       },
     });

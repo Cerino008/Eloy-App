@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { Alert, StyleSheet, View, type TextInputInstance } from 'react-native';
 
 import { api } from '@/api/cliente';
-import { ErrorApi, esConflicto } from '@/api/errores';
+import { esConflicto, esRespuestaDelServidor } from '@/api/errores';
 import { Boton, BotonTexto, CampoTexto, Logo, Pantalla, Texto } from '@/componentes';
 import { useSesion } from '@/sesion';
 import { espacio } from '@/tema';
@@ -36,7 +36,7 @@ export default function Registro() {
     onSuccess: (tokens) => entrar(tokens),
     onError: (error) => {
       if (esConflicto(error)) setEmailUsado(`${error.message}. Probá entrar con tu contraseña.`);
-      else if (error instanceof ErrorApi && error.estado < 500) Alert.alert('No pudimos crear la cuenta', error.message);
+      else if (esRespuestaDelServidor(error)) Alert.alert('No pudimos crear la cuenta', error.message);
       else Alert.alert('No pudimos crear la cuenta', 'Revisá que el teléfono tenga internet y probá de nuevo.');
     },
   });

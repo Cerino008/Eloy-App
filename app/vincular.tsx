@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { consultas } from '@/api/consultas';
-import { ErrorApi } from '@/api/errores';
+import { ErrorApi, esRespuestaDelServidor } from '@/api/errores';
 import { useVincular } from '@/api/useVincular';
 import {
   Boton,
@@ -60,7 +60,7 @@ export default function Vincular() {
         // 404: el backend no distingue un código mal escrito de uno vencido.
         if (error instanceof ErrorApi && error.estado === 404) {
           mostrarErrorDeCodigo('Ese código no existe o ya venció: pedile a Eloy uno nuevo.');
-        } else if (error instanceof ErrorApi && error.estado < 500) {
+        } else if (esRespuestaDelServidor(error)) {
           // 429 (cuánto esperar) y 409 (ese Eloy ya tiene familia): el texto del backend.
           mostrarErrorDeCodigo(error.message);
         } else {

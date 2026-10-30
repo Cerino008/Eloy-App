@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { Alert, StyleSheet, View, type TextInputInstance } from 'react-native';
 
 import { api } from '@/api/cliente';
-import { ErrorApi } from '@/api/errores';
+import { esRespuestaDelServidor } from '@/api/errores';
 import { Boton, BotonTexto, CampoTexto, Logo, Pantalla, Texto } from '@/componentes';
 import { useSesion } from '@/sesion';
 import { espacio } from '@/tema';
@@ -32,7 +32,7 @@ export default function Login() {
     onSuccess: (tokens) => entrar(tokens),
     onError: (error) => {
       // 401, 403 o 429: el servidor ya explica qué pasó.
-      if (error instanceof ErrorApi && error.estado < 500) setErrorServidor(error.message);
+      if (esRespuestaDelServidor(error)) setErrorServidor(error.message);
       else Alert.alert('No pudimos entrar', 'Revisá que el teléfono tenga internet y probá de nuevo.');
     },
   });

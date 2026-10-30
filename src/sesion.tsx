@@ -1,57 +1,11 @@
-// La sesión: los tokens quedan guardados en el llavero del teléfono (expo-secure-store),
-// así no hay que volver a entrar cada vez que se abre la app.
+// La sesión: si hay tokens guardados en el teléfono (sesionGuardada.ts), entrar y salir. Los manda y los
+// renueva http.ts; si el refresh ya no sirve, avisa y acá se vuelve al login.
 import { useQueryClient } from '@tanstack/react-query';
-import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { api } from '@/api/cliente';
+import { borrarSesion, escucharSesionVencida, guardarSesion, leerSesion } from '@/api/sesionGuardada';
 import type { Tokens } from '@/api/tipos';
-
-const CLAVE = 'eloy.sesion';
-
-type SesionGuardada = {
-  accessToken: string;
-  refreshToken: string;
-  venceEn: number; // cuándo vence el access token, en milisegundos
-};
-
-async function leerSesion(): Promise<SesionGuardada | null> {
-  try {
-    const guardada = await SecureStore.getItemAsync(CLAVE);
-    return guardada ? (JSON.parse(guardada) as SesionGuardada) : null;
-  } catch {
-    // Si no se puede leer, mejor pedir que entre de nuevo que dejar la app trabada.
-    return null;
-  }
-}
-
-async function guardarSesion(tokens: Tokens): Promise<void> {
-  const sesion: SesionGuardada = {
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
-    venceEn: Date.now() + tokens.expiraEnSeg * 1000,
-  };
-  await SecureStore.setItemAsync(CLAVE, JSON.stringify(sesion));
-}
-
-async function borrarSesion(): Promise<void> {
-  try {
-    await SecureStore.deleteItemAsync(CLAVE);
-  } catch {
-    // Si no se pudo borrar, la próxima vez que se abra la app se intenta de nuevo con el mismo token.
-  }
-}
-
-// El token para el header Authorization. Lo va a usar cliente.ts al conectar el backend.
-export async function tokenDeAcceso(): Promise<string | null> {
-  const sesion = await leerSesion();
-  if (!sesion) return null;
-  // Acá va la renovación, cuando conectemos el backend real: si venceEn ya pasó (o una llamada
-  // respondió 401), POST /auth/refresh con sesion.refreshToken y guardar el par nuevo (el refresh
-  // rota: el viejo deja de servir). Si el refresh responde 401, la sesión venció: hay que avisarle
-  // al SesionProvider para que cierre la sesión y vuelva al login.
-  return sesion.accessToken;
-}
 
 type EstadoSesion = 'cargando' | 'sin_sesion' | 'con_sesion';
 
@@ -70,7 +24,12 @@ export function SesionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     leerSesion().then((sesion) => setEstado(sesion ? 'con_sesion' : 'sin_sesion'));
-  }, []);
+    // El refresh venció o lo revocaron (ej. "cerrar todas las sesiones"): http.ts ya borró los tokens.
+    return escucharSesionVencida(() => {
+      setEstado('sin_sesion');
+      queryClient.clear();
+    });
+  }, [queryClient]);
 
   const entrar = async (tokens: Tokens) => {
     await guardarSesion(tokens);

@@ -13,6 +13,9 @@ App móvil (iOS y Android) para los familiares de una persona mayor que usa **El
 - TanStack Query para pedir datos a la API
 - expo-secure-store (sesión), expo-camera (QR), expo-notifications (push, etapa 3), expo-audio (audios)
 - Se prueba con **Expo Go** en un iPhone (`npx expo start`). No agregar librerías que no funcionen en Expo Go sin avisar.
+- `.env` (no va a git; copiar de `.env.example`): `EXPO_PUBLIC_API_URL` (el backend en Northflank, ver `backend/DEPLOY.md`) y
+  `EXPO_PUBLIC_USAR_EJEMPLO` (`true`: datos de ejemplo sin backend; `false`: el backend). Después de cambiarlo, `npx expo start -c`.
+  Expo mete esas variables en la app: nunca poner claves ahí.
 - Instalar dependencias con `npx expo install` (elige versiones compatibles con el SDK).
 
 ## Estructura
@@ -34,17 +37,21 @@ app/
   invitacion.tsx           aceptar una invitación; acepta ?codigo= en la ruta
 src/
   tema.ts                  colores, tipografía, espacios (única fuente de estilos)
-  sesion.tsx               tokens en expo-secure-store, SesionProvider y useSesion()
+  sesion.tsx               SesionProvider y useSesion(): entrar, salir y volver al login si la sesión vence
   validaciones.ts          avisos de los formularios (email, contraseña…)
   codigos.ts               alfabeto del código de Eloy (el de backend/app/seguridad.py) y código dentro de un link
   componentes/             Tarjeta, Boton, Avatar, BurbujaMensaje, FilaRecordatorio, PuntoEstado...
   api/tipos.ts             contrato con el backend
+  api/cliente.ts           funciones api.xxx(): las rutas reales del backend, o simulado.ts si EXPO_PUBLIC_USAR_EJEMPLO=true
+  api/http.ts              fetch al backend: Bearer, renovación del token, ErrorApi, parámetros en snake_case, aCamel()
+  api/sesionGuardada.ts    los tokens en expo-secure-store y el aviso de sesión vencida
+  api/simulado.ts          la API de mentira, armada como el servidor con los datos de ejemplo
   api/ejemplo.ts           datos de ejemplo (Marta, Vero, Juan)
-  api/cliente.ts           funciones api.xxx(); hoy devuelven ejemplos, después llaman a la API
 backend/                   API de Héctor (no tocar). Contrato: app/schemas.py y README.md
 ```
 
-Regla: las pantallas **no** leen `ejemplo.ts` directo, siempre usan `cliente.ts`. Cuando el backend esté listo solo cambia `cliente.ts`.
+Regla: las pantallas **no** leen `ejemplo.ts` ni `simulado.ts` directo, siempre usan `api` de `cliente.ts`. Una ruta nueva va en
+las dos versiones (`cliente.ts` y `simulado.ts`): `apiReal` tiene el tipo de `apiSimulada`, así que TypeScript avisa si falta una.
 
 ### Flujo de entrada
 
@@ -55,7 +62,10 @@ Regla: las pantallas **no** leen `ejemplo.ts` directo, siempre usan `cliente.ts`
 - Con sesión y sin personas (ej. cuenta recién creada): `bienvenida` e `invitacion`.
 - Con sesión y personas: las pestañas, `alerta/[id]` y `nuevo-recordatorio`. `vincular`, con cualquier sesión.
 
-La renovación del token (`POST /auth/refresh`, con rotación) va en `tokenDeAcceso()` de `src/sesion.tsx`, al conectar el backend.
+La sesión la maneja `src/api/http.ts`: manda el access token, lo renueva antes de que venza y, ante un 401, hace **un solo**
+`POST /auth/refresh` (rota: el viejo deja de servir) aunque fallen varias llamadas juntas, y reintenta una vez. Si el refresh da
+401, borra los tokens y avisa: `SesionProvider` vuelve al login. Sin red o con más de 15 s: `ErrorApi(0, 'No pudimos conectarnos...')`;
+las pantallas muestran el texto del servidor solo si `esRespuestaDelServidor(error)` (4xx); si no, su aviso de revisar internet.
 
 ## Diseño
 
@@ -88,7 +98,7 @@ Accesibilidad: `accessibilityLabel` en botones que son solo ícono; contraste su
 
 El contrato real es el del backend: **`backend/app/schemas.py`** (qué entra y sale de cada endpoint) y **`backend/README.md`** (rutas, códigos de respuesta y notas para la app). Base de datos documentada en `docs/Eloy_Diagnostico_y_Base_de_Datos_v2.pdf`. Fechas de la API siempre en **UTC ISO 8601**; la app las muestra en hora local.
 
-Los tipos de `src/api/tipos.ts` son los de `schemas.py` con los mismos nombres pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`). `cliente.ts` simula las respuestas como el servidor (orden, separaciones, `esMio`, `soyYo`…): las pantallas no calculan nada de eso.
+Los tipos de `src/api/tipos.ts` son los de `schemas.py` con los mismos nombres pero en camelCase (ej. `tambien_avisamos_a` → `tambienAvisamosA`). `simulado.ts` arma las respuestas como el servidor (orden, separaciones, `esMio`, `soyYo`…): las pantallas no calculan nada de eso.
 
 Las rutas de una persona llevan su id (`/personas/{id}/inicio`, `/mensajes`, `/recordatorios`, `/familia`): las pantallas lo toman de `usePersonaActual()` (por ahora, la primera de `GET /personas`) y las consultas lo llevan en la clave (`consultas.inicio(idPersona)`).
 
@@ -152,7 +162,7 @@ type Alerta = {                                                                 
 
 ### Ya resuelto en el backend
 
-Lo que la app simula en `src/api/cliente.ts` igual que el backend; al conectar, seguir lo del backend:
+Lo que `src/api/simulado.ts` imita del backend (si difieren, manda el backend):
 
 - **Quién soy:** `GET /auth/yo` devuelve el usuario (`UsuarioOut`). El rol y cuál familiar soy vienen en `GET /personas` (`mi_rol`, `id_mi_familiar`) y en `GET /personas/{id}/familia` (`mi_rol`, `soy_yo`).
 - **Invitaciones:** `POST /personas/{id}/invitaciones` (solo administradores) devuelve `{ link, codigo, expiraEn }`. El código viaja dentro del link: la app comparte el link (y el código aparte, por si lo piden). Tiene **8 caracteres** (se acepta en minúscula; 429 después de 5 códigos equivocados en 15 minutos).
@@ -164,7 +174,7 @@ Lo que la app simula en `src/api/cliente.ts` igual que el backend; al conectar, 
 
 ### Pendiente con Héctor
 
-- **`data` de los push** (`id_alerta`, `id_persona`…): siguen en snake_case; la app los pasa a camelCase al recibirlos.
+- **`data` de los push** (`id_alerta`, `id_persona`…): siguen en snake_case; la app los pasa a camelCase al recibirlos con `aCamel()` de `src/api/http.ts`.
 
 ### Pendiente en la app
 
@@ -177,3 +187,5 @@ Lo que la app simula en `src/api/cliente.ts` igual que el backend; al conectar, 
 - Después de cada cambio: `npx tsc --noEmit` sin errores.
 - Commits chicos con mensaje en español que diga qué cambió.
 - Después de cada commit, `git push`.
+- El backend en Northflank **no se despliega solo**: si el push tocó `backend/app/`, `scripts/`, `sql/`, `Dockerfile` o
+  `requirements.txt`, disparar el deploy a mano como dice `backend/DEPLOY.md` (corta la API entre 30 s y 1 minuto).
