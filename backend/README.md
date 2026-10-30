@@ -201,6 +201,12 @@ docker compose up --build
 python herramientas/simular_eloy.py alta      # después: codigo, sync (2 o 3 veces), alerta "motivo"
 ```
 
+## Cambios v2.3 (listo para desplegar)
+
+Detalle en **`CAMBIOS.md`**. Resumen: la base se puede pasar en partes (`DB_HOST`, `DB_USER`...), como la da un
+addon de Northflank, con TLS verificado (`DB_TLS`); la imagen corre con UID/GID fijos (10001) para que el volumen
+de audios tenga permisos; y los tests pasan también en MySQL 8.4. **Nada cambia para la app ni para la Pi.**
+
 ## Deploy
 
 Hace falta: un contenedor con el `Dockerfile`, una base MySQL 8 o MariaDB administrada y,
@@ -209,12 +215,19 @@ para los audios, un bucket S3 compatible. Pasos comunes a cualquier proveedor:
 1. Crear la base y correr `python -m scripts.init_db` una vez (desde tu compu apuntando a la
    base de la nube, o como tarea del proveedor).
 2. Cargar las variables de `.env.example` en el panel del servicio. `JWT_SECRET` y
-   `PROVISIONING_KEY` tienen que ser largas y distintas.
+   `PROVISIONING_KEY` tienen que ser largas y distintas. La base va entera en `DATABASE_URL` o en partes
+   (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`), como la pasa una base administrada. Si la base
+   usa TLS, `DB_TLS=true`: se verifica el certificado y el nombre del servidor (sin eso, PyMySQL cifra si
+   puede pero no verifica con quién habla).
 3. Health check: `GET /salud` (el `Dockerfile` ya trae un `HEALTHCHECK`).
 4. **`ENTORNO=produccion`**: así el servidor se niega a arrancar con una configuración insegura.
 5. **Detrás de un balanceador** definí `FORWARDED_ALLOW_IPS` con la IP o rango del balanceador. Sin eso la API ve
    la IP del balanceador (el límite de intentos sigue funcionando, pero agrupa a todos); con `*` cualquiera falsea su IP.
-6. **Push en iPhone con Expo:** la app tiene que mandar el token de Expo (`getExpoPushTokenAsync`, empieza con
+   Acepta rangos (`10.0.0.0/8`): uvicorn toma la última IP de `X-Forwarded-For` que no sea de ese rango, que es la
+   que agregó el balanceador.
+6. **Audios sin S3** (`ALMACENAMIENTO=local`): un volumen montado justo en `/app/media`. La imagen corre como
+   UID/GID 10001; si el proveedor no le da el volumen a ese grupo, la API no puede guardar audios.
+7. **Push en iPhone con Expo:** la app tiene que mandar el token de Expo (`getExpoPushTokenAsync`, empieza con
    `ExponentPushToken[`). Con `getDevicePushTokenAsync` el token de iOS es de APNs y Firebase lo rechaza.
    Los tokens nativos de Android siguen yendo por FCM.
 
@@ -238,5 +251,4 @@ prendida**; si no, el segundo aviso no sale. Varias instancias no mandan avisos 
 - Verificación de email y recuperar contraseña (con eso se puede limitar el registro por IP).
 - Retención de audios y consentimiento (Ley 25.326) antes de usar datos de personas reales.
 - Versiones fijas de las dependencias (hoy `>=`): generar un archivo de versiones congeladas.
-- Probado en MariaDB 10.11. En MySQL 8 debería andar igual, pero conviene correr los tests una vez ahí.
 - Migraciones: cuando el esquema siga cambiando, pasar a Alembic (hoy hay un solo ALTER en `sql/cambios/`).

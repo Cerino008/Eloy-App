@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 
 from app.config import settings
+from app.db import argumentos_de_conexion
 
 SCRIPT = Path(__file__).resolve().parent.parent / "sql" / "eloy_servidor.sql"
 
@@ -18,7 +19,7 @@ def sentencias(sql: str) -> list[str]:
 
 
 def crear(url: str = settings.database_url) -> None:
-    engine = create_engine(url)
+    engine = create_engine(url, connect_args=argumentos_de_conexion())
     with engine.begin() as con:
         for s in sentencias(SCRIPT.read_text(encoding="utf-8")):
             con.execute(text(s))

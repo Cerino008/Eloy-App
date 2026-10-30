@@ -1,3 +1,60 @@
+# Cambios v2.3 — listo para desplegar (Northflank)
+
+Pedido de Héctor y Bautista para subir el backend a Northflank, hecho por Bautista (con Claude). No cambia nada
+para la app ni para la Pi: es configuración, la imagen y tests.
+
+> Estado: **50 tests pasan** (los 44 de antes + 6 nuevos en `tests/test_despliegue.py`) en MariaDB 10.11,
+> MySQL 8.4 y MySQL 8.4 exigiendo TLS. `ruff` no marca nada.
+
+## 1. MySQL 8.4
+
+Los 44 tests de antes pasaron en MySQL 8.4.13 **sin cambiar nada**, con la configuración por defecto de MySQL
+(`sql_mode` con `ONLY_FULL_GROUP_BY`, colación del servidor `utf8mb4_0900_ai_ci`, zona `SYSTEM`): las tablas
+llevan su colación y cada conexión se pone en UTC. `init_db` también anda con un usuario que no es root (solo
+permisos sobre su base) y una clave con `:/@#%`.
+
+## 2. La base en partes
+
+Un addon de Northflank no da una URL para SQLAlchemy: da `HOST`, `PORT`, `DATABASE`, `USERNAME`, `PASSWORD` y
+`TLS_ENABLED` (también un `MYSQL_CONNECTOR_URI`, pero sin `+pymysql` y sin documentar qué opciones trae).
+
+- `config.py` acepta `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_TLS` y `DB_TLS_CA`. En
+  Northflank se cargan como alias de las del addon. Si no hay `DATABASE_URL`, la arma con `URL.create`, que escapa
+  la clave. **`DATABASE_URL` sigue mandando** (docker compose, tests y desarrollo no cambian).
+- `settings.database_url` siempre queda con la URL final, así el resto del código no se enteró.
+- Con `ENTORNO=produccion` y sin ninguna de las dos, el servidor no arranca (antes intentaba `localhost`).
+
+## 3. TLS verificado
+
+Northflank elige TLS al crear el addon (no se puede cambiar después) y, si está prendido, lo exige en todas las
+conexiones. Con `DB_TLS=true`, `db.argumentos_de_conexion()` le pasa a PyMySQL un `ssl.create_default_context()`:
+**verifica el certificado y el nombre del servidor** con las CA del sistema (la imagen `python:3.12-slim` las
+trae) o con `DB_TLS_CA`. Lo usan el engine de la API, `scripts/init_db.py` y `tests/conftest.py`.
+
+Ojo: PyMySQL 2 ya cifra solo si el servidor ofrece TLS, pero **sin verificar con quién habla** (igual que pasar
+`ssl={}`). Por eso no alcanza con "ya sale cifrado": hace falta `DB_TLS=true`.
+
+Probado contra MySQL 8.4 con `require_secure_transport=ON` y un certificado de una CA hecha para la prueba: con
+`DB_TLS_CA` pasan los 50 tests; con las CA del sistema se rechaza (`CERTIFICATE_VERIFY_FAILED`); conectando por un
+nombre que no está en el certificado, se rechaza (`Hostname mismatch`); sin cifrar, MySQL la rechaza.
+
+## 4. Imagen: usuario fijo para el volumen
+
+Northflank le da el volumen al grupo del `USER` de la imagen. Antes era `USER eloy`, sin grupo y con el UID que
+eligiera `useradd`. Ahora: grupo y usuario `eloy` con **UID/GID 10001** y `USER 10001:10001`.
+
+- Si ya tenías audios de prueba en el volumen `audios` de docker compose, quedaron del usuario anterior:
+  `docker compose run --rm -u root api chown -R 10001:10001 /app/media`.
+- Probado: la imagen corre como 10001, arranca en modo producción con la base en partes y TLS, `init_db` crea las
+  18 tablas y `/salud` responde `{"ok": true}`.
+
+## 5. `FORWARDED_ALLOW_IPS` en Northflank
+
+El proxy de Northflank agrega la IP del cliente **al final** de `X-Forwarded-For`. Uvicorn (0.54) acepta rangos
+y toma la última IP que no sea de confianza, así que lo que mande el cliente en esa cabecera se ignora. Probado
+con un rango de confianza y `X-Forwarded-For: 1.2.3.4, 203.0.113.7`: el log muestra `203.0.113.7`. El rango
+exacto del proxy se ve en el log después de desplegar (va en `DEPLOY.md`); nunca `*`.
+
 # Cambios v2.2 — camelCase, invitación corta y simulador de Eloy
 
 Pedido de Héctor, hecho por Bautista (con Claude) en la rama `backend-correcciones`, sin mergear: la revisa Héctor.

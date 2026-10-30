@@ -21,7 +21,7 @@ from sqlalchemy.engine import make_url  # noqa: E402
 
 from app import tiempo  # noqa: E402
 from app.config import settings  # noqa: E402
-from app.db import engine  # noqa: E402
+from app.db import argumentos_de_conexion, engine  # noqa: E402
 from app.seguridad import (  # noqa: E402
     limitador_dispositivo, limitador_invitacion, limitador_login, limitador_vincular,
 )
@@ -33,7 +33,7 @@ from scripts.init_db import crear  # noqa: E402
 @pytest.fixture(scope="session", autouse=True)
 def base_de_datos():
     url = make_url(settings.database_url)
-    servidor = create_engine(url.set(database=""))
+    servidor = create_engine(url.set(database=""), connect_args=argumentos_de_conexion())
     with servidor.begin() as con:
         con.execute(text(f"DROP DATABASE IF EXISTS `{url.database}`"))
         con.execute(text(f"CREATE DATABASE `{url.database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))

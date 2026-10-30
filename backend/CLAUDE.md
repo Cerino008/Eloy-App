@@ -20,7 +20,8 @@ Sin Docker: venv + `pip install -r requirements-dev.txt` + `.env` (ver `.env.exa
 
 ```
 app/main.py                arranque, routers, /salud y el worker de avisos (WORKER_ACTIVO)
-app/config.py              variables de entorno; con ENTORNO=produccion no arranca con secretos de fábrica
+app/config.py              variables de entorno; con ENTORNO=produccion no arranca con secretos de fábrica.
+                           La base: DATABASE_URL o en partes (DB_HOST...); TLS en db.argumentos_de_conexion()
 app/models.py              las 18 tablas (espejo de sql/eloy_servidor.sql)
 app/schemas.py             entrada/salida de la APP (camelCase, base ModeloApp)
 app/schemas_dispositivo.py contrato con la RASPBERRY (snake_case)
@@ -32,7 +33,8 @@ app/routers/               cuenta, personas (inicio, familia, invitaciones, memo
 app/servicios/             sync (POST /dispositivo/sync), alertas (escalado, reintentos, reavisos),
                            recordatorios (hoy/próximos), push (FCM + Expo), almacenamiento, mantenimiento
 sql/eloy_servidor.sql      esquema, fuente de verdad;  sql/cambios/  ALTER para bases ya creadas
-tests/                     test_pantallas (una por pantalla), test_confiabilidad (v2.1), test_correcciones (v2.2)
+tests/                     test_pantallas (una por pantalla), test_confiabilidad (v2.1), test_correcciones (v2.2),
+                           test_despliegue (v2.3)
 herramientas/              simular_eloy.py: hace de Pi, sin dependencias (estado en .eloy_simulado.json)
 ```
 
@@ -57,4 +59,5 @@ herramientas/              simular_eloy.py: hace de Pi, sin dependencias (estado
 - Por qué restaurar anula los `id_local` recién al confirmar, y el ida y vuelta de "ya se lo leyó" → README, "Cambios respecto al documento v2.0".
 - Reintentos y reavisos de alertas, push por Expo, controles de producción → `CAMBIOS.md`, v2.1.
 - camelCase, código de invitación de 8, simulador → `CAMBIOS.md`, v2.2.
+- Base en partes, TLS verificado, UID/GID 10001 de la imagen y `FORWARDED_ALLOW_IPS` → `CAMBIOS.md`, v2.3.
 - Lo que falta → README, "Pendiente".

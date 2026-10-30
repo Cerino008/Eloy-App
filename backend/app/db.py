@@ -1,9 +1,22 @@
+import ssl
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.database_url, pool_pre_ping=True, pool_recycle=280)
+
+def argumentos_de_conexion() -> dict:
+    """Con DB_TLS, PyMySQL conecta por TLS y verifica el certificado y el nombre del servidor
+    (con las CA del sistema o con DB_TLS_CA). Sin DB_TLS, PyMySQL 2 igual cifra si el servidor
+    lo ofrece, pero sin verificar con quién habla (lo mismo que pasar ssl={})."""
+    if not settings.db_tls:
+        return {}
+    return {"ssl": ssl.create_default_context(cafile=settings.db_tls_ca)}
+
+
+engine = create_engine(settings.database_url, connect_args=argumentos_de_conexion(),
+                       pool_pre_ping=True, pool_recycle=280)
 
 
 @event.listens_for(engine, "connect")

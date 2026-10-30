@@ -3,6 +3,7 @@ import logging
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 from typing import Literal
 
 log = logging.getLogger("eloy.config")
@@ -18,7 +19,17 @@ class Settings(BaseSettings):
     entorno: Literal["desarrollo", "produccion"] = "desarrollo"
 
     # Base de datos (MySQL 8 / MariaDB 10.5+). El driver es PyMySQL.
-    database_url: str = "mysql+pymysql://eloy:eloy@localhost:3306/eloy?charset=utf8mb4"
+    # Entera en DATABASE_URL (desarrollo, docker compose, tests) o en partes, como la pasa una base
+    # administrada (en Northflank, alias de HOST, PORT, DATABASE, USERNAME, PASSWORD y TLS_ENABLED).
+    # Si están las dos, manda DATABASE_URL. Después de validar, database_url siempre tiene la URL final.
+    database_url: str | None = None
+    db_host: str | None = None
+    db_port: int = 3306
+    db_name: str = "eloy"
+    db_user: str | None = None
+    db_password: str | None = None
+    db_tls: bool = False               # TLS verificando el certificado y el nombre del servidor
+    db_tls_ca: str | None = None       # certificado de la CA, si no es una de las del sistema
 
     # Tokens de la app
     jwt_secret: str = SECRETO_DE_FABRICA
@@ -73,6 +84,17 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _controles_de_arranque(self) -> "Settings":
         problemas: list[str] = []
+        if not self.database_url:
+            if self.db_host:
+                # URL.create escapa la clave (puede traer @, :, / o %).
+                self.database_url = URL.create(
+                    "mysql+pymysql", username=self.db_user, password=self.db_password, host=self.db_host,
+                    port=self.db_port, database=self.db_name, query={"charset": "utf8mb4"},
+                ).render_as_string(hide_password=False)
+            elif self.entorno == "produccion":
+                problemas.append("falta la base de datos (DATABASE_URL, o DB_HOST con DB_USER y DB_PASSWORD)")
+            else:
+                self.database_url = "mysql+pymysql://eloy:eloy@localhost:3306/eloy?charset=utf8mb4"
         for nombre, valor in (("JWT_SECRET", self.jwt_secret), ("PROVISIONING_KEY", self.provisioning_key)):
             if valor == SECRETO_DE_FABRICA or len(valor) < 32:
                 problemas.append(f"{nombre} tiene el valor de fábrica o tiene menos de 32 caracteres")
