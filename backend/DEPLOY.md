@@ -28,10 +28,12 @@ imprimió. No están en el repo ni en ningún archivo: se ven en el panel (secre
 
 ## Cómo funciona
 
-- **Deploy continuo:** cada push a `main` reconstruye la imagen y la despliega. No se pudo limitar a los cambios de
-  `backend/` (Northflank ignora `pathIgnoreRules` en este plan), así que también un commit solo de la app redespliega.
-- **Cada redeploy o reinicio corta entre 30 s y 1 minuto** (medido: 35–55 s): con el volumen, Northflank apaga el contenedor viejo antes de
-  prender el nuevo. Mientras tanto la API responde 503; la Pi reintenta en el próximo sync y la app muestra el error.
+- **Deploy a mano, no automático** (`disabledCI: true`): un push a `main` **no** cambia el servidor. Después de un
+  push con cambios en `backend/` hay que disparar el deploy (ver abajo). Se apagó el automático porque Northflank
+  ignora el filtro de rutas (`pathIgnoreRules`) en este plan: cada commit de la app reiniciaba la API.
+- **Cada redeploy o reinicio corta entre 30 s y 1 minuto** (medido: 35–55 s): con el volumen, Northflank apaga el
+  contenedor viejo antes de prender el nuevo. Mientras tanto la API responde 503; la Pi reintenta en el próximo
+  sync y la app muestra el error.
 - **Health checks:** readiness HTTP `GET /salud` en el 8000 (si la base no responde, Northflank deja de mandarle
   tráfico) y liveness TCP en el 8000 (así una caída de la base no reinicia la API en bucle).
 - **Base:** la URL se arma con `DB_*` y conecta por **TLS 1.3 verificando certificado y nombre** (la CA es pública,
@@ -46,6 +48,28 @@ imprimió. No están en el repo ni en ningún archivo: se ven en el panel (secre
   permite backups diarios**. Antes de algo riesgoso, hacer uno a mano: addon `eloy-db` → Backups → Backup now.
 - **La base se creó** con `python -m scripts.init_db` adentro del contenedor (30/10/2026, 18 tablas). No hay que
   repetirlo: falla si las tablas ya existen.
+
+## Desplegar un cambio de `backend/`
+
+Solo cuando el push tocó lo que va en la imagen: `backend/app/`, `scripts/`, `sql/`, `Dockerfile`,
+`requirements.txt` o `.dockerignore`. Docs, tests y `herramientas/` no hace falta desplegarlos.
+
+1. Commit y `git push` a `main` (Northflank construye lo que está en GitHub, no tu copia local).
+2. Disparar el build; al terminar se despliega solo:
+
+   ```bash
+   northflank start service build --projectId default --serviceId eloy-api --input '{}'
+   ```
+
+   Con el MCP de Northflank: `start_service_build` con `projectId: "default"` y `serviceId: "eloy-api"` (sin body).
+   Construye el último commit de `main`.
+3. Seguirlo: `get_deployment_status` del MCP (con el `buildId` que devolvió el paso 2) o la pestaña Builds de la
+   web. Tarda ~1 minuto en construir y la API se corta entre 30 s y 1 minuto al cambiar de contenedor.
+4. Comprobar: `curl https://http--eloy-api--8xm892fjxzwf.code.run/salud` → `{"ok":true}`, y que en los logs aparezca
+   `Eloy API arrancó en modo produccion` sin errores.
+
+Si cambia el esquema, primero el `ALTER` de `sql/cambios/` contra la base (ver "Comandos adentro del contenedor") y
+después el deploy. Para volver atrás: `git revert` del commit, push y deploy como arriba.
 
 ## Ver logs
 

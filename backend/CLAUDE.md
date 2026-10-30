@@ -61,4 +61,9 @@ herramientas/              simular_eloy.py: hace de Pi, sin dependencias (estado
 - camelCase, código de invitación de 8, simulador → `CAMBIOS.md`, v2.2.
 - Base en partes, TLS verificado, UID/GID 10001 de la imagen y `FORWARDED_ALLOW_IPS` → `CAMBIOS.md`, v2.3.
 - El deploy en Northflank (recursos, variables, logs, comandos) → `DEPLOY.md`.
+- **El deploy es a mano:** un push a `main` no cambia el servidor. Si el push tocó `app/`, `scripts/`, `sql/`,
+  `Dockerfile`, `requirements.txt` o `.dockerignore`, disparar el build (se despliega solo al terminar):
+  `northflank start service build --projectId default --serviceId eloy-api --input '{}'`, o `start_service_build`
+  del MCP de Northflank (`projectId: "default"`, `serviceId: "eloy-api"`). Corta la API entre 30 s y 1 minuto;
+  verificar con `GET /salud`. Detalle en `DEPLOY.md`, "Desplegar un cambio de backend/".
 - Lo que falta → README, "Pendiente".
